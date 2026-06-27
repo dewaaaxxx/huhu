@@ -80,7 +80,7 @@ static inline const MenuTheme& GetTheme() {
 
 // g_ExpiryTimestamp (from keylogin.h) replaces hardcoded EXPIRY_TS
 
-static bool DEBUG_BYPASS_LOGIN = false;
+static bool DEBUG_BYPASS_LOGIN = true;
 
 static float EaseOutBack(float x) {
     const float c1 = 1.70158f;
