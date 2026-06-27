@@ -1,10 +1,10 @@
 #pragma once
 #include "include/includes.h"
+#include "mod/PowerSlider.h"
 #include "game.h"
 #include "game/Ruleset.h"
 #include "imgui/inc/8bp.h"
 #include "mod/keylogin.h"
-#include "mod/PowerSlider.h"
 #include "oxorany/oxorany.h"
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
