@@ -1,5 +1,12 @@
 name: Extract ZIP
-on: workflow_dispatch
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  workflows: write   # ← TAMBAHKAN INI
+
 jobs:
   extract:
     runs-on: ubuntu-latest
