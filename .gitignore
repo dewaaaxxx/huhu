@@ -1,0 +1,39 @@
+# ── Android NDK & SDK (JANGAN di-push, ukurannya ratusan MB) ──
+android-sdk/
+ndk/
+*.ndk
+
+# ── Build output ───────────────────────────────────────────────
+output_so/
+*.so
+*.o
+*.a
+*.d
+
+# ── Gradle ────────────────────────────────────────────────────
+.gradle/
+build/
+app/build/
+local.properties
+
+# ── Android Studio / IDE ──────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+captures/
+.externalNativeBuild/
+.cxx/
+
+# ── Keystore & secrets ────────────────────────────────────────
+*.jks
+*.keystore
+keystore.properties
+
+# ── OS files ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log

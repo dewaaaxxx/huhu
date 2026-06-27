@@ -1,0 +1,20 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "u986DkA0tYpvcgu2ooxIg"
+uri = "file://output_so/library_arm64.tar.gz"
+type = "unspecified"
+title = "library.so (arm64-v8a) — AIM Tab Baru"
+
+[[outputs]]
+id = "31fiMfY6dI7dnSeqmgwcu"
+uri = "file://output_so/library_fixed.gz"
+type = "unspecified"
+title = "library.so (Fixed - AutoPlay Scan Optimized)"
+
+[[outputs]]
+id = "KRC42MKYSDWYWYF9HHcFh"
+uri = "file://output_so/library_fast_scan.gz"
+type = "unspecified"
+title = "library.so — Fast Scan + Background Thread"
