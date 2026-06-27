@@ -1428,7 +1428,7 @@ void AutoPlay::Update() {
                 fastShotState = 2; // Transition to wait-for-slider phase
             }
             return;
-        }*/
+        }
 
      /*1   if (fastShotState == 2) {
     
