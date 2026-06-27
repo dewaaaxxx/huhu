@@ -26,9 +26,9 @@ jobs:
           distribution: 'temurin'
 
       - name: Check if .a files exist
-          run: |
-    ls -la app/src/main/jni/include/external/curl/curl-android-arm64-v8a/lib/
-    ls -la app/src/main/jni/include/external/curl/openssl-android-arm64-v8a/lib/
+        run: |
+          ls -la app/src/main/jni/include/external/curl/curl-android-arm64-v8a/lib/
+          ls -la app/src/main/jni/include/external/curl/openssl-android-arm64-v8a/lib/
 
       # ── 3. Android NDK r25c ────────────────────────────────────
       - name: Setup Android NDK r25c
