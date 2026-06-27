@@ -1,7 +1,7 @@
 #include "AutoPlayy.h"
 #include "Prediction.fast.h"
 extern ButtonClicker buttonClicker;
-#include "PowerSlider.h"
+//#include "PowerSlider.h"
 extern PowerSlider powerSlider;
 #include <math.h>
 #include <random>
