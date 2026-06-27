@@ -6,11 +6,6 @@
 #include <string>
 #include <chrono>
 #include <random>
-#include "include/logger.h"
-#include "../../include/external/Vector/Vectors.h"
-#include "imgui/imgui.h"
-#include "GameConstants.h"
-#include "Ball.h"
 
 // ==================== تعريف Candidate من GameConstants.h ====================
 // ملاحظة: Candidate معرف في GameConstants.h، لا نعيد تعريفه هنا!
