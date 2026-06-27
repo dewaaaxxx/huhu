@@ -475,6 +475,7 @@ static std::string ReadNSString(ptr str) {
     return result;
 }
 
+static float g_sideBtnsX      = 0.0f;   // 0 = uninitialized → default right side
 // Shared vertical position for DrawToggleButton and DrawFloatingButton (they move together)
 static float g_sideBtnsY      = 0.0f;
 // Kept for linker compatibility — no longer used for animation
