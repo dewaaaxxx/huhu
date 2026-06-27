@@ -267,7 +267,7 @@ INLINE bool Login(std::string androidID, std::string key) {
           const std::string encrypt_key = OO("JiM21rNU12eERlNmpqa3FuQks").str();
           const std::string ws_token    = OO("KJGMDKFJDHG34KD").str();
           const std::string version     = OO("1.0").str();
-          const std::string api_url     = OO("https://lyn8bp.vercel.app/api/validate").str();
+          const std::string api_url     = OO("https://baru-baru.vercel.app/api/validate").str();
           try {
               nlohmann::json inner = {
                   {OO("license_key").str(), key},
