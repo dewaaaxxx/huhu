@@ -447,18 +447,10 @@ INLINE void DrawESP(ImDrawList* draw) {
             // Throttle: even if "moved", skip every other frame to save CPU
             bool doSim = (moved || stChanged) && (++s_skipFrame & 1u);
 
-            if (stateId == 4 && doSim) {
-                gPrediction->determineShotResult(false);
-                s_lastCuePos  = curCuePos;
-                s_lastStateId = stateId;
-            }
+            if (stateId == 4) gPrediction->determineShotResult(false);
             if (stateId == 7) {
-                if (!HasFeature("esp") || !persistent_bool["bEnemyLine"]) return;
-                if (doSim) {
-                    gPrediction->determineShotResult(false);
-                    s_lastCuePos  = curCuePos;
-                    s_lastStateId = stateId;
-                }
+            if (!persistent_bool["bEnemyLine"]) return;
+            gPrediction->determineShotResult(false);
             }
         }
 
