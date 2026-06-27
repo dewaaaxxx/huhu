@@ -1,19 +1,87 @@
-name: Extract ZIP
+name: Build library.so (arm64-v8a)
 
 on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'app/src/main/jni/**'
+      - '.github/workflows/build.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
-  actions: write
-
 jobs:
-  extract:
+  build:
+    name: NDK Build
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Extract
+      # ── 1. Checkout ────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Java 17 ────────────────────────────────────────────
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # ── 3. Android NDK r25c ────────────────────────────────────
+      - name: Setup Android NDK r25c
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+          add-to-path: true
+
+      # ── 4. Build .so ───────────────────────────────────────────
+      - name: Build library.so
+        env:
+          ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
         run: |
-          find . -name "*.zip" -exec unzip -o {} \;
-          rm -f *.zip
-      - uses: stefanzweifel/git-auto-commit-action@v5
+          echo "NDK path: $ANDROID_NDK_ROOT"
+          NDK_BUILD="$ANDROID_NDK_ROOT/ndk-build"
+
+          JNI_DIR="$GITHUB_WORKSPACE/app/src/main/jni"
+          mkdir -p app/src/main/libs app/src/main/obj
+
+          "$NDK_BUILD" \
+            -C "$GITHUB_WORKSPACE/app/src/main" \
+            NDK_PROJECT_PATH="$GITHUB_WORKSPACE/app/src/main" \
+            NDK_APPLICATION_MK="$JNI_DIR/Application.mk" \
+            APP_BUILD_SCRIPT="$JNI_DIR/Android.mk" \
+            NDK_LIBS_OUT="$GITHUB_WORKSPACE/app/src/main/libs" \
+            NDK_OUT="$GITHUB_WORKSPACE/app/src/main/obj" \
+            -j$(nproc) \
+            V=0
+
+      # ── 5. Rename with timestamp ───────────────────────────────
+      - name: Rename output
+        run: |
+          SO_SRC="app/src/main/libs/arm64-v8a/library.so"
+          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+          mkdir -p output_so
+          cp "$SO_SRC" "output_so/library.so"
+          cp "$SO_SRC" "output_so/library_${TIMESTAMP}.so"
+          echo "=== Build Info ==="
+          ls -lh output_so/
+          file output_so/library.so
+
+      # ── 6. Upload artifact ────────────────────────────────────
+      - name: Upload library.so
+        uses: actions/upload-artifact@v4
+        with:
+          name: library-so-arm64-v8a
+          path: output_so/
+          retention-days: 30
+
+      # ── 7. Summary ────────────────────────────────────────────
+      - name: Build summary
+        run: |
+          SO_SIZE=$(du -sh output_so/library.so | cut -f1)
+          echo "## ✅ Build Berhasil" >> $GITHUB_STEP_SUMMARY
+          echo "| Info | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| File | library.so |" >> $GITHUB_STEP_SUMMARY
+          echo "| ABI | arm64-v8a |" >> $GITHUB_STEP_SUMMARY
+          echo "| Size | $SO_SIZE |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
