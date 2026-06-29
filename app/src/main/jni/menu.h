@@ -484,7 +484,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
             for (int i = 0; i < 6; i++) {
-                if (Prediction::pocketStatus[i]) {
+                if (gPrediction->guiData.pocketStatus[i]) {
                     auto screenPos = WorldToScreen(pockets[i]);
                     draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 30, GREEN, 0, 5.f);
                 }
