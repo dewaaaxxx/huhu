@@ -14,7 +14,7 @@
 #include <Vector/Vectors.h>
 #include <imgui/imgui.h>
 #include "icons/icons.h"
-#include "game/inc/AutoPlay.impl.h"
+//#include "game/inc/AutoPlay.impl.h"
 
 using namespace ImGui;
 using namespace std;
@@ -336,6 +336,93 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     PopStyleColor(2);
 }
 
+INLINE void DrawAutoQueue() {
+    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+        static std::chrono::steady_clock::time_point last_call_time;
+        static std::chrono::steady_clock::time_point countdown_start;
+        static bool counting = false;
+
+        int aqMode = persistent_int["iAutoQueue_Mode"];
+
+        auto now = std::chrono::steady_clock::now();
+
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_call_time).count() > 500) {
+            counting = false;
+        }
+        last_call_time = now;
+
+        if (!counting) {
+            counting = true;
+            countdown_start = now;
+        }
+
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - countdown_start).count();
+
+        // Mode 1 (Smart): delay scales with BetPercent — lower coins = longer wait
+        int countdown_ms = 3000;
+        if (aqMode == 1) {
+            int betPct = persistent_int["iAutoQueue_BetPercent"];
+            if (betPct <= 0) betPct = 1;
+            // 100% bet → 2s delay, 1% bet → 8s delay
+            countdown_ms = 2000 + (int)((1.0f - betPct / 100.0f) * 6000.0f);
+        }
+
+        int remaining_ms = countdown_ms - elapsed;
+
+        if (remaining_ms <= 0) {
+            if (sharedMenuManager.getMenuStateId() == 13) PopMenuState(13);
+            StartLastMatch();
+            counting = false;
+            return;
+        }
+
+        SetNextWindowPos(ImVec2(Width / 2.0f, Height / 2.0f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        SetNextWindowSize(ImVec2(360, 260), ImGuiCond_Always);
+        PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.12f, 0.98f));
+        PushStyleVar(ImGuiStyleVar_WindowRounding, 20.0f);
+
+        if (Begin(O("##AutoQueue"), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
+            ImDrawList* dl = GetWindowDrawList();
+            ImVec2 winPos = GetWindowPos();
+            ImVec2 winSize = GetWindowSize();
+            
+            DrawGradientRect(dl, winPos, ImVec2(winPos.x + winSize.x, winPos.y + 70), IM_COL32(40, 100, 180, 255), IM_COL32(60, 140, 200, 255), true);
+            dl->AddRectFilled(winPos, ImVec2(winPos.x + winSize.x, winPos.y + 20), IM_COL32(40, 100, 180, 255), 20.0f, ImDrawFlags_RoundCornersTop);
+            
+            ImVec2 titleSize = CalcTextSize(O("Auto Queue"));
+            dl->AddText(ImVec2(winPos.x + (winSize.x - titleSize.x) * 0.5f, winPos.y + 22), IM_COL32(255, 255, 255, 255), O("Auto Queue"));
+
+            SetCursorPosY(90);
+            float font_scale = 3.5f;
+            SetWindowFontScale(font_scale);
+
+            std::string count_str = std::to_string((remaining_ms / 1000) + 1);
+            auto text_size = CalcTextSize(count_str.c_str());
+            SetCursorPosX((winSize.x - text_size.x) * 0.5f);
+            TextColored(ImVec4(0.35f, 0.7f, 1.0f, 1.0f), "%s", count_str.c_str());
+
+            SetWindowFontScale(1.0f);
+
+            SetCursorPosY(winSize.y - 75);
+            SetCursorPosX(25);
+            PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.25f, 0.25f, 1.0f));
+            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.35f, 0.35f, 1.0f));
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+            
+            if (Button(O("Cancel"), ImVec2(winSize.x - 50, 50))) {
+                persistent_bool[O("bAutoQueue")] = false;
+                counting = false;
+            }
+            
+            PopStyleVar();
+            PopStyleColor(2);
+            End();
+        }
+        PopStyleVar();
+        PopStyleColor();
+    }
+}
+
 INLINE void DrawESP(ImDrawList* draw) {
     if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
         if (!sharedGameManager) return;
@@ -359,7 +446,12 @@ INLINE void DrawESP(ImDrawList* draw) {
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
         if (!mainStateManager) return;
         g_isInGame = mainStateManager.isInGame();
-          if (!g_isInGame) return;
+        if (!g_isInGame) {
+            if (persistent_bool[O("bAutoQueue")]) {
+                if (!sharedMenuManager.isInQueue()) DrawAutoQueue();
+            }
+            if (!persistent_bool[O("bESPAlways")]) return;
+        }
 
         auto visualCue = sharedGameManager.mVisualCue();
 
@@ -636,15 +728,16 @@ static void DrawContentArea(float winW, float winH) {
             SectionHeader("Draw");
             need_save |= ToggleSwitch(O("Draw Lines"),       &persistent_bool[O("bESP_DrawPredictionLine")]);
             need_save |= ToggleSwitch(O("Draw Pockets"),     &persistent_bool[O("bESP_DrawPocketsShotState")]);
-            need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
+           // need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
 
             // ═══════════════════════════════════════════════════
             // ═══════════════════════════════════════════════════
             // SECTION: Auto Play
             // ═══════════════════════════════════════════════════
             Dummy(ImVec2(0, 8));
-            SectionHeader("Auto Play");
+            SectionHeader("Auto");
             need_save |= ToggleSwitch(O("Auto Play"), &persistent_bool[O("bAutoPlay")]);
+            need_save |= ToggleSwitch(O("Auto Queue"), &persistent_bool[O("bAutoQueue")]);
 
             Dummy(ImVec2(0, 4));
             break;
