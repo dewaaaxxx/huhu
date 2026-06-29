@@ -40,31 +40,24 @@ std::map<string, int64_t> modeBets = {
 void StartLastMatch() {
     LOGI("StartLastMatch");
 
-    int mode = persistent_int["iAutoQueue_Mode"];
-
-    if (mode == 0 && lastMatchInfo.set) {
-        // Last Selected: replay the last match
-        _StartMatch(sharedMenuManager.instance, 0, lastMatchInfo.Tier, 0, 0, 0, 0, 0, 0, lastMatchInfo.arg10, lastMatchInfo.arg11);
-
-    } else if (mode == 1) {
-        // Smart: pick best table within coin budget
-        auto coins  = sharedUserInfo.coins();
+    if (persistent_int["iAutoQueue_Mode"] == 0 && lastMatchInfo.set) {
+    _StartMatch(sharedMenuManager.instance, 0, lastMatchInfo.Tier, 0, 0, 0, 0, 0, 0, lastMatchInfo.arg10, lastMatchInfo.arg11);
+    } else if (persistent_int["iAutoQueue_Mode"] == 1) {
+        auto coins = sharedUserInfo.coins();
         auto maxBet = coins * persistent_int["iAutoQueue_BetPercent"] / 100;
-
+        
         string selectedMode = "M1";
-        for (const auto& [m, bet] : modeBets) {
-            if (maxBet >= bet) { selectedMode = m; }
+        int64_t selectedBet = 50;
+        
+        for (const auto& [mode, bet] : modeBets) {
+            if (maxBet >= bet) {
+                selectedMode = mode;
+                selectedBet = bet;
+            }
         }
-        LOGI("Smart mode selected %s (budget %lld)", selectedMode.c_str(), maxBet);
+        
+        LOGI("Selected mode %s with bet %lld (50%% of %lld coins)", selectedMode.c_str(), selectedBet, coins);
         _StartMatch(sharedMenuManager.instance, 0, selectedMode, 0, 0, 0, 0, 0, 0, 0x7100000001, 0xffffffff);
-
-    } else if (mode == 2) {
-        // Fix Table: use the table chosen by iAutoQueue_FixTable (0=M1 … 16=M17)
-        int idx  = persistent_int["iAutoQueue_FixTable"];
-        if (idx < 0 || idx > 16) idx = 0;
-        string tier = "M" + std::to_string(idx + 1);
-        LOGI("Fix Table mode tier %s", tier.c_str());
-        _StartMatch(sharedMenuManager.instance, 0, tier, 0, 0, 0, 0, 0, 0, 0x7100000001, 0xffffffff);
     }
 }
 
