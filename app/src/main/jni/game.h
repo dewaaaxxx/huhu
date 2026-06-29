@@ -14,6 +14,6 @@
 #include "game/inc/GameConstants.h"
 #include "game/inc/NumberUtils.h"
 #include "game/inc/Prediction.fast.h"
-#include "8bp/inc/AutoQueue.h"
+#include "game/inc/AutoQueue.h"
 #include "game/inc/AutoPlay.h"
 #include "game/inc/ScreenTable.h"
