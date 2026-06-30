@@ -337,12 +337,10 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
 }
 
 INLINE void DrawAutoQueue() {
-    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+    if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
         static std::chrono::steady_clock::time_point last_call_time;
         static std::chrono::steady_clock::time_point countdown_start;
         static bool counting = false;
-
-        int aqMode = persistent_int["iAutoQueue_Mode"];
 
         auto now = std::chrono::steady_clock::now();
 
@@ -357,17 +355,7 @@ INLINE void DrawAutoQueue() {
         }
 
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - countdown_start).count();
-
-        // Mode 1 (Smart): delay scales with BetPercent — lower coins = longer wait
-        int countdown_ms = 3000;
-        if (aqMode == 1) {
-            int betPct = persistent_int["iAutoQueue_BetPercent"];
-            if (betPct <= 0) betPct = 1;
-            // 100% bet → 2s delay, 1% bet → 8s delay
-            countdown_ms = 2000 + (int)((1.0f - betPct / 100.0f) * 6000.0f);
-        }
-
-        int remaining_ms = countdown_ms - elapsed;
+        int remaining_ms = 3000 - elapsed;
 
         if (remaining_ms <= 0) {
             if (sharedMenuManager.getMenuStateId() == 13) PopMenuState(13);
@@ -445,12 +433,10 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
         if (!mainStateManager) return;
-        g_isInGame = mainStateManager.isInGame();
-        if (!g_isInGame) {
-            if (persistent_bool[O("bAutoQueue")]) {
-                if (!sharedMenuManager.isInQueue()) DrawAutoQueue();
-            }
-            if (!persistent_bool[O("bESPAlways")]) return;
+        if (!mainStateManager.isInGame()) {
+        if (persistent_bool[O("bAutoQueue")]) {
+            if (!sharedMenuManager.isInQueue()) DrawAutoQueue();
+        } return;
         }
 
         auto visualCue = sharedGameManager.mVisualCue();
@@ -738,6 +724,38 @@ static void DrawContentArea(float winW, float winH) {
             SectionHeader("Auto");
             need_save |= ToggleSwitch(O("Auto Play"), &persistent_bool[O("bAutoPlay")]);
             need_save |= ToggleSwitch(O("Auto Queue"), &persistent_bool[O("bAutoQueue")]);
+            
+            Dummy(ImVec2(0, 20));
+            
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Mode"));
+            Dummy(ImVec2(0, 8));
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+            PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(15, 12));
+            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+            PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
+            SetNextItemWidth(GetContentRegionAvail().x);
+            need_save |= Combo("##mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
+            PopStyleColor(2);
+            PopStyleVar(2);
+            
+            if (persistent_int["iAutoQueue_Mode"] == 1) {
+                Dummy(ImVec2(0, 15));
+                TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Bet Percent"));
+                Dummy(ImVec2(0, 8));
+                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+                PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
+                PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+                PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.3f, 0.6f, 0.95f, 1.0f));
+                PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
+                SetNextItemWidth(GetContentRegionAvail().x);
+                need_save |= SliderInt("##betpercent", &persistent_int["iAutoQueue_BetPercent"], 1, 100, "%d%%");
+                PopStyleColor(3);
+                PopStyleVar(2);
+            }
+            
+            Dummy(ImVec2(0, 25));
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("You will be auto queued to"));
+            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("the last game mode you played"));
 
             Dummy(ImVec2(0, 4));
             break;
