@@ -1,0 +1,101 @@
+name: Delete all artifacts (run-once)
+
+on:
+  workflow_dispatch:
+    inputs:
+      # Default mode is 'delete' to remove all matching artifacts when you press Run
+      mode:
+        description: 'dry = only show, delete = actually delete'
+        required: true
+        default: 'delete'
+      older_than_days:
+        description: 'Hapus artifact lebih tua dari N hari (0 = ignore)'
+        required: true
+        default: '0'
+      pattern:
+        description: 'Substring nama artifact untuk dicocokkan (kosong = semua)'
+        required: false
+        default: ''
+
+permissions:
+  actions: write
+
+jobs:
+  delete-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jq
+        run: sudo apt-get update -y && sudo apt-get install -y jq
+      - name: List and delete artifacts
+        env:
+          MODE: ${{ github.event.inputs.mode }}
+          OLDER_THAN_DAYS: ${{ github.event.inputs.older_than_days }}
+          PATTERN: ${{ github.event.inputs.pattern }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          OWNER=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f1)
+          REPO=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f2)
+          echo "Repo: $OWNER/$REPO"
+          if [ "$OLDER_THAN_DAYS" -gt 0 ]; then
+            cutoff=$(date -u -d "$OLDER_THAN_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+            echo "Cutoff: $cutoff (older than $OLDER_THAN_DAYS days)"
+          else
+            cutoff=""
+            echo "No cutoff (OLDER_THAN_DAYS=0)"
+          fi
+
+          page=1
+          total=0
+          deleted=0
+          while :; do
+            resp=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$OWNER/$REPO/actions/artifacts?per_page=100&page=$page")
+            count=$(echo "$resp" | jq '.artifacts | length')
+            if [ "$count" -eq 0 ]; then
+              break
+            fi
+
+            echo "Processing page $page, artifacts: $count"
+            echo "$resp" | jq -c '.artifacts[]' | while read -r a; do
+              id=$(echo "$a" | jq -r '.id')
+              name=$(echo "$a" | jq -r '.name')
+              created_at=$(echo "$a" | jq -r '.created_at')
+              total=$((total+1))
+
+              if [ -n "$PATTERN" ] && ! echo "$name" | grep -Fq "$PATTERN"; then
+                echo "SKIP (pattern): $id $name"
+                continue
+              fi
+
+              if [ -n "$cutoff" ]; then
+                if [ "$(date -d "$created_at" +%s)" -ge "$(date -d "$cutoff" +%s)" ]; then
+                  echo "SKIP (newer than cutoff): $id $name ($created_at)"
+                  continue
+                fi
+              fi
+
+              if [ "$MODE" = "dry" ]; then
+                echo "[DRY-RUN] Would delete: $id $name ($created_at)"
+              else
+                echo "Deleting: $id $name ($created_at)"
+                status=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+                  -H "Authorization: Bearer $GITHUB_TOKEN" \
+                  -H "Accept: application/vnd.github+json" \
+                  "https://api.github.com/repos/$OWNER/$REPO/actions/artifacts/$id")
+                if [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+                  echo " -> Deleted $id"
+                  deleted=$((deleted+1))
+                else
+                  echo " -> Failed to delete $id (status $status)"
+                fi
+              fi
+            done
+
+            if [ "$count" -lt 100 ]; then
+              break
+            fi
+            page=$((page+1))
+          done
+
+          echo "Done. Total artifacts scanned: $total. Deleted: $deleted."
