@@ -7,11 +7,11 @@
 #include <Vector/Vectors.h>
 #include <vector>
 
-#include "game/Ball.h"
+#include "8bp/Ball.h"
 
 #include <imgui/inc/persistence.h>
 
-#include "game/GameManager.h"
+#include "8bp/GameManager.h"
 
 static Vec4d table_bounds;
 static bool fastCalc = true;
@@ -95,10 +95,6 @@ struct Prediction {
 
     bool firstHitIsTarget = false;
     Candidate m_candidate = {-1};
-    // forceFullSimulation: paksa simulasi jalan penuh tanpa early-return.
-    // WAJIB=true saat validasi shot (scratch detection, 8ball safety).
-    // false untuk display biasa (lebih cepat).
-    bool forceFullSimulation = false;
 
     void calculateShotResultSize();
     void initBalls();
@@ -127,15 +123,11 @@ static Point2D prevSpin = {0.0, 0.0};
 /* PREDICTION PUBLIC METHODS ==================================================================== */
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
-    // Skip cache saat forceFullSimulation — butuh hasil fresh setiap call
-    if (!forceFullSimulation) {
-        if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
-    }
+    if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
     prevAngle = shotAngle, prevPower = shotPower, prevSpin = shotSpin;
 
     this->m_candidate = cand;
-    // forceFullSimulation=true → fastCalc=false → tidak early-return
-    fastCalc = forceFullSimulation ? false : isAuto;
+    fastCalc = isAuto;
 
     this->initBalls();
     this->initCueBall(shotAngle, shotPower, shotSpin);
@@ -229,10 +221,7 @@ void Prediction::determineBallsPositions() {
                 this->handleCollision();
                 if (this->guiData.collision.firstHitBall != nullptr && this->m_candidate.idx != -1) {
                     this->firstHitIsTarget = (this->guiData.collision.firstHitBall->index == this->m_candidate.idx);
-                    // Tanpa forceFullSimulation: early-return kalau bukan target (mode cepat).
-                    // Dengan forceFullSimulation: terus simulasikan sampai semua bola berhenti
-                    // supaya scratch dan 8ball masuk terdeteksi dengan benar.
-                    if (!this->firstHitIsTarget && !this->forceFullSimulation) return;
+                    if (!this->firstHitIsTarget) return;
                 }
             }
             time -= time2;

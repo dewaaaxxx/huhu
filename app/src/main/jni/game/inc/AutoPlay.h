@@ -7,7 +7,7 @@
 #include "ScreenTable.h"
 
 // #include "PowerSlider.h"
-//#include "ButtonClicker.h"
+#include "mod/ButtonClicker.h"
 
 using namespace ImGui;
 
@@ -62,49 +62,6 @@ bool IsShotValid() {
     return true;
 }
 
-/* void UpdatePowerSlider() {
-    static bool isSearchingExtraPower = false;
-    static float savedLowestPower = 0.0f;
-    static ImVec2 savedLowestPos = ImVec2(0, 0);
-    static ImVec2 bestValidPos = ImVec2(0, 0);
-
-    if (powerSlider.state != powerSlider.State::MOVING) {
-        isSearchingExtraPower = false;
-        return;
-    }
-
-    float currentPower = sharedGameManager.mVisualCue().getShotPower(true);
-    bool isValid = IsShotValid();
-
-    if (!isSearchingExtraPower) {
-        if (isValid && currentPower < 666.0f) {
-            isSearchingExtraPower = true;
-            savedLowestPower = currentPower;
-            savedLowestPos = powerSlider.CurrentPos;
-            bestValidPos = powerSlider.CurrentPos;
-            LOGI("Found valid shot at %f, searching for more power...", currentPower);
-        }
-    } else {
-        if (isValid) bestValidPos = powerSlider.CurrentPos;
-
-        if (!isValid) {
-            float midX = bestValidPos.x;// + (powerSlider.CurrentPos.x - savedLowestPos.x) * 0.5f;
-            float midY = bestValidPos.y;// + (powerSlider.CurrentPos.y - savedLowestPos.y) * 0.5f;
-            
-            powerSlider.CurrentPos = ImVec2(midX, midY);
-            NativeTouchesMove(powerSlider.TouchIndex, midX, midY);
-            
-            LOGI("Shot invalid at %f. Backing off and ending.", currentPower);
-            powerSlider.state = powerSlider.State::ENDING;
-            isSearchingExtraPower = false;
-        } else if (currentPower >= savedLowestPower + 80.0f) {
-            LOGI("Reached +80 power (%f -> %f). Forcefully ending.", savedLowestPower, currentPower);
-            powerSlider.state = powerSlider.State::ENDING;
-            isSearchingExtraPower = false;
-        }
-    }
-} */
-
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
 namespace AutoPlay {
     double lastSetAngle = 0.f;
@@ -136,12 +93,8 @@ namespace AutoPlay {
 
     void takeShot(double angle, double power) {
         setAimAngle(angle);
-        // FIX PREDICTION LINES: Tanpa spin, determineShotResult pakai spin default (0,0).
-        // Saat validasi di ScanFast/ScanSlow pakai getShotSpin() yang bisa berbeda.
-        // Akibatnya simulasi display berbeda dari simulasi validasi → lines meleset.
-        // Pakai getShotSpin() supaya display dan validasi pakai spin yang sama.
-        gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
-
+        // Pakai getShotSpin() supaya simulasi display konsisten dengan saat scan
+        gPrediction->determineShotResult(false, angle, power, sharedGameManager.getShotSpin());
         sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
     }
@@ -153,8 +106,7 @@ namespace AutoPlay {
     
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
-        // Pakai getShotSpin() supaya konsisten dengan spin yang dipakai saat validasi
-        gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+        gPrediction->determineShotResult(false, angle, power, sharedGameManager.getShotSpin());
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -198,14 +150,23 @@ namespace AutoPlay {
         int steps = 0;
         bool foundShot = false;
         
-        // FIX SPEED: 10 steps/frame terlalu lambat → ~35 detik full scan.
-        // 40 steps/frame → ~8 detik. Akurasi sama karena angleStep tetap kecil.
         while (steps < 40 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
 
-            std::vector<double> powers = {666.0, 550.0, 450.0, 350.0, 250.0, 150.0, 100.0, 80.0};
+            // Power berdasarkan estimasi jarak: pendek=rendah, jauh=tinggi
+            // Base: sqrt(2*196*dist) * 1.35, dengan dist estimasi setengah meja
+            // Coba 4 level: cukup untuk cover semua jarak tanpa terlalu berat
+            auto& cb = gPrediction->guiData.balls[0];
+            double estDist = 20.0; // estimasi jarak rata-rata
+            double basePow = std::min(sqrt(2.0 * 196.0 * estDist) * 1.35, 666.0);
+            std::vector<double> powers = {
+                std::min(basePow * 1.3, 666.0),
+                basePow,
+                std::max(basePow * 0.7, 80.0),
+                300.0
+            };
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
@@ -321,10 +282,7 @@ namespace AutoPlay {
             LOGI("AutoPlaySlow: Finished scan, nothing found.");
             isScanning = false;
             currentScanAngle = 0.0;
-            // FIX MACET: Reset lastFailedCuePos supaya ScanFast bisa coba lagi
-            // di giliran berikutnya. Tanpa ini ScanFast selalu skip karena
-            // lastFailedCuePos == posisi cue ball saat ini → langsung SLOW lagi
-            // → macet di pertengahan game.
+            // Reset lastFailedCuePos supaya ScanFast bisa coba lagi di giliran berikutnya
             lastFailedCuePos = { -1000.0, -1000.0 };
             state = IDLE;
         }
@@ -357,6 +315,8 @@ namespace AutoPlay {
         bool bFoundLowestNumberedBall = false;
         int iFoundLowestNumberedBall = -1;
         bool isNineBallGame = myclass == Ball::Classification::NINE_BALL_RULE;
+        FrictionProperties friction = sharedGameManager.mTable()._frictionProperties();
+        double deceleration = friction._velocityReductionRollingFactor * 9.81;
         for (int i = 1; i < gPrediction->guiData.ballsCount; i++) { // ball[0](cue ball) never a candidate
             if (isNineBallGame && bFoundLowestNumberedBall) break;
 
@@ -372,9 +332,6 @@ namespace AutoPlay {
                 bool isACandidate = myclass == Ball::Classification::ANY ? ball.classification != Ball::Classification::EIGHT_BALL : ball.classification == myclass;
                 if (!isACandidate) continue;
             }
-            
-            FrictionProperties friction = sharedGameManager.mTable()._frictionProperties();
-            double deceleration = friction._velocityReductionRollingFactor * 9.81;
 
             for (int pocketIdx = 0; pocketIdx < pockets.size(); pocketIdx++) {
                 if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
@@ -393,17 +350,15 @@ namespace AutoPlay {
                 if (angle < 0) angle += 2 * M_PI;
                 
                 double score = distCueToTarget + distTargetToPocket;
-                
-                // Calculate minimum velocity needed to cover the distance
-                // v^2 = u^2 + 2as -> u = sqrt(2 * a * s)
-                // We use the sliding friction constant from Prediction.h: 196.0
-                // _frictionProperties._velocityReductionSlidingFactor
-                // ================================================================
-                // PAKE FRICTION DARI GAME (LEBIH AKURAT)
-                // ================================================================
-                double requiredVelocity = sqrt(2.0 * deceleration * score) * 1.3;
-                double power = requiredVelocity * 4.0;  // Konversi ke power 0-666
-                
+
+                // Power formula: v = sqrt(2 * a * s)
+                // Pakai sliding deceleration 196.0 (dari Prediction_fast initCueBall)
+                // bukan rolling friction * 9.81 yang dipakai untuk bola yang sudah lambat.
+                // Faktor 1.35: kompensasi energy loss di ball-ball collision
+                // (komponen tangensial tidak ditransfer) + cloth friction.
+                constexpr double slidingDecel = 196.0;
+                double power = sqrt(2.0 * slidingDecel * score) * 1.35;
+
                 if (power > 666.0) power = 666.0;
                 if (power < 80.0) power = 80.0;
                 
@@ -411,141 +366,118 @@ namespace AutoPlay {
             }
         }
 
-        // BANK SHOT CANDIDATES: Generate kandidat via 1-cushion reflection.
-        // Cara: untuk tiap bola × tiap pocket, hitung posisi pantulan di 4 sisi meja,
-        // lalu hitung angle ke ghost ball via titik pantulan tersebut.
-        // Score bank shot sama dengan direct shot — kompetisi murni berdasarkan jarak total.
-        // Direct shot pendek vs bank shot pendek dipilih berdasarkan siapa lebih dekat.
-        {
-            // Ambil batas meja dari table_bounds (sudah diset di Prediction)
-            double tbl_x1 = table_bounds.x; // left
-            double tbl_y1 = table_bounds.y; // top
-            double tbl_x2 = table_bounds.z; // right
-            double tbl_y2 = table_bounds.w; // bottom
+        // ── BANK SHOT CANDIDATES (1 cushion) ──────────────────────────────
+        // Generate kandidat via refleksi ke 4 sisi cushion.
+        // Score = totalDist * 0.85 supaya bank shot sedikit diprioritaskan
+        // vs direct shot yang jaraknya sama — tapi direct yang jauh lebih
+        // pendek tetap menang.
+        // Cushion bounds (world coords):
+        constexpr double CL = TABLE_BOUND_LEFT;
+        constexpr double CR = TABLE_BOUND_RIGHT;
+        constexpr double CT = TABLE_BOUND_TOP;
+        constexpr double CB = TABLE_BOUND_BOTTOM;
 
-            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                if (isNineBallGame && i != iFoundLowestNumberedBall) continue;
+        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+            if (isNineBallGame && i != iFoundLowestNumberedBall) continue;
 
-                auto& ball = gPrediction->guiData.balls[i];
-                if (!ball.originalOnTable) continue;
+            auto& ball = gPrediction->guiData.balls[i];
+            if (!ball.originalOnTable) continue;
 
-                if (!isNineBallGame) {
-                    bool isACandidate = myclass == Ball::Classification::ANY
-                        ? ball.classification != Ball::Classification::EIGHT_BALL
-                        : ball.classification == myclass;
-                    if (!isACandidate) continue;
-                }
+            if (!isNineBallGame) {
+                bool isACandidate = myclass == Ball::Classification::ANY
+                    ? ball.classification != Ball::Classification::EIGHT_BALL
+                    : ball.classification == myclass;
+                if (!isACandidate) continue;
+            }
 
-                FrictionProperties friction = sharedGameManager.mTable()._frictionProperties();
-                double deceleration = friction._velocityReductionRollingFactor * 9.81;
+            for (int pocketIdx = 0; pocketIdx < (int)pockets.size(); pocketIdx++) {
+                if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
 
-                for (int pocketIdx = 0; pocketIdx < (int)pockets.size(); pocketIdx++) {
-                    if (nominatedPocket < 6 && pocketIdx != nominatedPocket) continue;
+                Point2D pocket = pockets[pocketIdx];
+                Point2D toPocket = pocket - ball.initialPosition;
+                double distTargetToPocket = sqrt(toPocket.square());
+                if (distTargetToPocket < 0.1) continue;
 
-                    Point2D pocket = pockets[pocketIdx];
-                    Point2D toPocket = pocket - ball.initialPosition;
-                    double distTargetToPocket = sqrt(toPocket.square());
-                    if (distTargetToPocket < 0.1) continue;
+                Point2D dir = toPocket * (1.0 / distTargetToPocket);
+                Point2D ghostBall = ball.initialPosition - dir * (2.0 * BALL_RADIUS);
 
-                    Point2D direction = toPocket * (1.0 / distTargetToPocket);
-                    Point2D ghostBallPos = ball.initialPosition - direction * (2.0 * BALL_RADIUS);
-
-                    // 4 sisi cushion: kiri, kanan, atas, bawah
-                    // Untuk tiap sisi, hitung titik pantul bola cue supaya
-                    // lintasan cue → cushion → ghost ball valid
-                    struct CushionReflection { Point2D reflectPt; bool valid; };
-                    auto calcReflection = [&](int side) -> CushionReflection {
-                        // Refleksikan ghost ball terhadap sisi cushion
-                        Point2D reflected = ghostBallPos;
-                        double cushionPos;
-                        switch (side) {
-                            case 0: cushionPos = tbl_x1; reflected.x = 2.0 * cushionPos - ghostBallPos.x; break; // kiri
-                            case 1: cushionPos = tbl_x2; reflected.x = 2.0 * cushionPos - ghostBallPos.x; break; // kanan
-                            case 2: cushionPos = tbl_y1; reflected.y = 2.0 * cushionPos - ghostBallPos.y; break; // atas
-                            case 3: cushionPos = tbl_y2; reflected.y = 2.0 * cushionPos - ghostBallPos.y; break; // bawah
-                        }
-
-                        // Titik pantul = perpotongan garis cue→reflected dengan sisi cushion
-                        Point2D lineDir = reflected - cueBall.initialPosition;
-                        double t = 0.0;
-                        bool ok = false;
-                        switch (side) {
-                            case 0: if (fabs(lineDir.x) > 1e-6) { t = (tbl_x1 - cueBall.initialPosition.x) / lineDir.x; ok = true; } break;
-                            case 1: if (fabs(lineDir.x) > 1e-6) { t = (tbl_x2 - cueBall.initialPosition.x) / lineDir.x; ok = true; } break;
-                            case 2: if (fabs(lineDir.y) > 1e-6) { t = (tbl_y1 - cueBall.initialPosition.y) / lineDir.y; ok = true; } break;
-                            case 3: if (fabs(lineDir.y) > 1e-6) { t = (tbl_y2 - cueBall.initialPosition.y) / lineDir.y; ok = true; } break;
-                        }
-                        if (!ok || t <= 0.01) return {Point2D{}, false};
-                        Point2D pt = cueBall.initialPosition + lineDir * t;
-
-                        // Cek titik pantul dalam batas meja
-                        if (pt.x < tbl_x1 - 0.5 || pt.x > tbl_x2 + 0.5 ||
-                            pt.y < tbl_y1 - 0.5 || pt.y > tbl_y2 + 0.5) return {Point2D{}, false};
-
-                        return {pt, true};
-                    };
-
-                    for (int side = 0; side < 4; side++) {
-                        auto [reflectPt, valid] = calcReflection(side);
-                        if (!valid) continue;
-
-                        // Angle dari cue ball ke titik pantul
-                        Point2D toReflect = reflectPt - cueBall.initialPosition;
-                        double distToReflect = sqrt(toReflect.square());
-                        if (distToReflect < 0.1) continue;
-
-                        double bankAngle = atan2(toReflect.y, toReflect.x);
-                        if (bankAngle < 0) bankAngle += 2 * M_PI;
-
-                        // Estimasi total jarak: cue→cushion + cushion→ghost + ghost→pocket
-                        double distReflectToGhost = sqrt((reflectPt - ghostBallPos).square());
-                        double totalDist = distToReflect + distReflectToGhost + distTargetToPocket;
-
-                        double requiredVelocity = sqrt(2.0 * deceleration * totalDist) * 1.5; // 1.5x lebih besar untuk bank
-                        double power = requiredVelocity * 4.0;
-                        if (power > 666.0) power = 666.0;
-                        if (power < 100.0) power = 100.0;
-
-                        // Score = total jarak tanpa penalty — seimbang dengan direct shot
-                        double bankScore = totalDist * 0.7; // Bank shot diprioritaskan: score dikurangi 30% supaya naik di ranking
-                        candidates.push_back({i, bankAngle, bankScore, pocketIdx, power});
+                // 4 sisi: 0=kiri, 1=kanan, 2=atas, 3=bawah
+                for (int side = 0; side < 4; side++) {
+                    // Refleksikan ghost ball terhadap sisi cushion
+                    Point2D reflected = ghostBall;
+                    switch (side) {
+                        case 0: reflected.x = 2.0 * CL - ghostBall.x; break;
+                        case 1: reflected.x = 2.0 * CR - ghostBall.x; break;
+                        case 2: reflected.y = 2.0 * CT - ghostBall.y; break;
+                        case 3: reflected.y = 2.0 * CB - ghostBall.y; break;
                     }
+
+                    // Titik pantul = perpotongan garis (cueBall → reflected) dengan cushion
+                    Point2D lineDir = reflected - cueBall.initialPosition;
+                    double t = -1.0;
+                    switch (side) {
+                        case 0: if (fabs(lineDir.x) > 1e-6) t = (CL - cueBall.initialPosition.x) / lineDir.x; break;
+                        case 1: if (fabs(lineDir.x) > 1e-6) t = (CR - cueBall.initialPosition.x) / lineDir.x; break;
+                        case 2: if (fabs(lineDir.y) > 1e-6) t = (CT - cueBall.initialPosition.y) / lineDir.y; break;
+                        case 3: if (fabs(lineDir.y) > 1e-6) t = (CB - cueBall.initialPosition.y) / lineDir.y; break;
+                    }
+                    if (t <= 0.01) continue; // pantul di belakang atau terlalu dekat
+
+                    Point2D cushionPt = cueBall.initialPosition + lineDir * t;
+
+                    // Validasi titik pantul dalam batas meja
+                    if (cushionPt.x < CL - 0.5 || cushionPt.x > CR + 0.5 ||
+                        cushionPt.y < CT - 0.5 || cushionPt.y > CB + 0.5) continue;
+
+                    // Angle dari cue ball ke titik pantul
+                    Point2D toReflect = cushionPt - cueBall.initialPosition;
+                    double distCueToCushion = sqrt(toReflect.square());
+                    if (distCueToCushion < 0.1) continue;
+
+                    double bankAngle = atan2(toReflect.y, toReflect.x);
+                    if (bankAngle < 0) bankAngle += 2 * M_PI;
+
+                    double distCushionToGhost = sqrt((cushionPt - ghostBall).square());
+                    double totalDist = distCueToCushion + distCushionToGhost + distTargetToPocket;
+
+                    // Power: bank shot butuh lebih karena ada energy loss di cushion (~20%)
+                    double bankPower = std::min(sqrt(2.0 * 196.0 * totalDist) * 1.6, 666.0);
+                    if (bankPower < 80.0) bankPower = 80.0;
+
+                    // Score sedikit lebih rendah dari direct supaya bank sedikit diprioritaskan
+                    double bankScore = totalDist * 0.85;
+
+                    candidates.push_back({i, bankAngle, bankScore, pocketIdx, bankPower});
                 }
             }
         }
-        
-        // Angle refinement: ghost ball formula bisa meleset karena BALL_RADIUS offset
-        // dan floating point. Sweep ±1° dan ±2° di sekitar angle teoritis.
-        static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
-        // Power sweep: kompensasi energy loss di collision dan jarak berbeda-beda.
-        // Base power dulu, lalu naik (shot jauh), lalu turun (shot dekat).
-        static const double kPowerFactors[] = {1.0, 1.15, 0.85, 1.3, 0.7};
+        // ─────────────────────────────────────────────────────────────────
+
+        // Angle refinement: ghost ball formula bisa meleset karena BALL_RADIUS
+        // offset dan floating point. Sweep ±0.5°, ±1°, ±1.5° di sekitar teoritis.
+        static const double kAngles[] = {0.0, -0.00873, 0.00873, -0.01745, 0.01745, -0.02618, 0.02618};
+        // Power sweep: base power dari formula, lalu naik/turun kompensasi jarak
+        static const double kPowers[] = {1.0, 1.1, 0.9, 1.2, 0.8};
 
         bool foundShot = false;
         for (const auto& cand : candidates) {
             double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
-
             bool simOk = false;
-            double confirmedAngle = baseAngle;
-            double confirmedPower = cand.power;
+            double usedAngle = baseAngle;
+            double usedPower = cand.power;
 
-            // Coba tiap kombinasi angle offset x power factor.
-            // Berhenti di kombinasi pertama yang lolos semua validasi.
-            for (double dA : kAngleOffsets) {
+            for (double dA : kAngles) {
                 if (simOk) break;
                 double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
-                for (double pf : kPowerFactors) {
+                for (double pf : kPowers) {
                     double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
                     gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
-
                     if (!gPrediction->firstHitIsTarget) continue;
                     if (!gPrediction->guiData.balls[0].onTable) continue;
 
-                    // Nine ball path
                     if (myclass == Ball::Classification::NINE_BALL_RULE) {
                         auto firstHit = gPrediction->guiData.collision.firstHitBall;
                         if (!firstHit || firstHit->index != cand.idx) continue;
-
                         int bestPottedIdx = -1;
                         for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                             auto& ball = gPrediction->guiData.balls[i];
@@ -557,23 +489,18 @@ namespace AutoPlay {
                         }
                         if (bestPottedIdx == -1) continue;
                         if (nominatedPocket < 6 && gPrediction->guiData.balls[bestPottedIdx].pocketIndex != nominatedPocket) continue;
-
-                        confirmedAngle = tryAngle;
-                        confirmedPower = tryPower;
-                        simOk = true;
-
-                        LOGI("AutoPlay: 9ball: angle %f power %f", confirmedAngle, confirmedPower);
+                        usedAngle = tryAngle; usedPower = tryPower; simOk = true;
+                        LOGI("AutoPlay: 9ball angle %f power %f", usedAngle, usedPower);
                         g_CurrentCandidate = cand;
                         g_CurrentCandidate.idx = bestPottedIdx;
-                        g_CurrentCandidate.angle = confirmedAngle;
-                        g_CurrentCandidate.power = confirmedPower;
+                        g_CurrentCandidate.angle = usedAngle;
+                        g_CurrentCandidate.power = usedPower;
                         g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
                         foundShot = true;
-                        Shoot(confirmedAngle, confirmedPower);
+                        Shoot(usedAngle, usedPower);
                         goto scanFastDone;
                     }
 
-                    // Regular / 8ball path
                     if (gPrediction->guiData.balls[cand.idx].onTable) continue;
                     if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
 
@@ -586,41 +513,33 @@ namespace AutoPlay {
                                 : (ball.classification == myclass);
                             if (match && ball.originalOnTable && !ball.onTable) { isAngleGood = true; break; }
                         }
-
                         if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
-                            auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                            if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) isAngleGood = false;
-                            else if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) isAngleGood = false;
+                            auto fh = gPrediction->guiData.collision.firstHitBall;
+                            if (myclass != Ball::Classification::ANY && fh->classification != myclass) isAngleGood = false;
+                            else if (myclass == Ball::Classification::ANY && fh->classification == Ball::Classification::EIGHT_BALL) isAngleGood = false;
                         }
-
                         if (isAngleGood && gPrediction->guiData.balls[0].originalOnTable && !gPrediction->guiData.balls[0].onTable) isAngleGood = false;
-
                         auto& ball8 = gPrediction->guiData.balls[8];
                         if (isAngleGood && ball8.originalOnTable && !ball8.onTable && myclass != Ball::Classification::EIGHT_BALL) isAngleGood = false;
-
                         if (!isAngleGood) continue;
                     }
 
-                    confirmedAngle = tryAngle;
-                    confirmedPower = tryPower;
-                    simOk = true;
+                    usedAngle = tryAngle; usedPower = tryPower; simOk = true;
                     break;
                 }
             }
 
             if (!simOk) continue;
 
-            LOGI("AutoPlay: Found good angle %f power %f", confirmedAngle, confirmedPower);
+            LOGI("AutoPlay: Found angle %f power %f", usedAngle, usedPower);
             g_CurrentCandidate = cand;
-            g_CurrentCandidate.angle = confirmedAngle;
-            g_CurrentCandidate.power = confirmedPower;
+            g_CurrentCandidate.angle = usedAngle;
+            g_CurrentCandidate.power = usedPower;
             foundShot = true;
-            Shoot(confirmedAngle, confirmedPower);
+            Shoot(usedAngle, usedPower);
             break;
         }
         scanFastDone:
-
-        if (!foundShot) {
             lastFailedCuePos = cueBall.initialPosition;
             LOGI("AutoPlay: No good angle found after smart scan.");
             scan = SLOW;
@@ -692,40 +611,28 @@ namespace AutoPlay {
     bool isAnimationActive() {
         auto visualCue = sharedGameManager.mVisualCue();
         if (!visualCue) return false; // null = belum init, bukan animasi aktif
-        
+
         auto _powerBarView = F(ptr, visualCue + 0x510);
-        if (!_powerBarView) return false; // null = belum ada power bar, bukan stuck
+        if (!_powerBarView) return false; // null = power bar belum ada, bukan stuck
 
-        auto activeAction = M(ptr, libmain + 0x2de6f30, ptr)(_powerBarView); // CCAction getActiveAction
-        if (activeAction) {
-            // auto tag = F(uint, activeAction + 0x18); // 668 hiding 667 showing
-            // LOGI("tag %u %d %p", tag, tag, tag);
-            return true;
-        }
-
-        return false;
+        auto activeAction = M(ptr, libmain + 0x2de6f30, ptr)(_powerBarView);
+        return (activeAction != nullptr);
     }
-    
+
     static double g_turnStartTime = 0.0;
     static bool g_turnTimerStarted = false;
 
     void Update() {
         buttonClicker.Update();
-        
-        // FIX STUCK BREAK/AWAL: isAnimationActive() bisa return true selamanya
-        // saat power bar animasi dari giliran sebelumnya belum clear.
-        // Tanpa timeout → scan tidak pernah mulai → waktu habis.
-        // Paksa lanjut setelah 2 detik.
-        if (!g_turnTimerStarted) {
-            g_turnStartTime = ImGui::GetTime();
-            g_turnTimerStarted = true;
-        }
-        bool animTimeout = (ImGui::GetTime() - g_turnStartTime > 2.0);
+        DrawToggleButton();
+
+        // Timeout 1.5 detik untuk handle kasus animasi stuck di awal/break
+        if (!g_turnTimerStarted) { g_turnStartTime = ImGui::GetTime(); g_turnTimerStarted = true; }
+        bool animTimeout = (ImGui::GetTime() - g_turnStartTime > 1.5);
         if (isAnimationActive() && !animTimeout) return;
 
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            // FIX STALE STATE: Reset semua saat giliran berakhir.
-            // Tanpa ini giliran berikutnya warisi lastFailedCuePos dan kandidat lama.
+            // Reset semua state saat giliran berakhir
             g_CurrentCandidate.idx = -1;
             lastFailedCuePos = { -1000.0, -1000.0 };
             state = IDLE;
