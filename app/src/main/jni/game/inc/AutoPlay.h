@@ -7,7 +7,7 @@
 #include "ScreenTable.h"
 
 // #include "PowerSlider.h"
-//#include "ButtonClicker.h"
+#include "ButtonClicker.h"
 
 using namespace ImGui;
 
@@ -136,7 +136,11 @@ namespace AutoPlay {
 
     void takeShot(double angle, double power) {
         setAimAngle(angle);
-        gPrediction->determineShotResult(false, angle, power);
+        // FIX PREDICTION LINES: Tanpa spin, determineShotResult pakai spin default (0,0).
+        // Saat validasi di ScanFast/ScanSlow pakai getShotSpin() yang bisa berbeda.
+        // Akibatnya simulasi display berbeda dari simulasi validasi → lines meleset.
+        // Pakai getShotSpin() supaya display dan validasi pakai spin yang sama.
+        gPrediction->determineShotResult(false, angle, power, sharedGameManager.getShotSpin());
 
         sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
@@ -149,7 +153,8 @@ namespace AutoPlay {
     
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
-        gPrediction->determineShotResult(false, angle, power);
+        // Pakai getShotSpin() supaya konsisten dengan spin yang dipakai saat validasi
+        gPrediction->determineShotResult(false, angle, power, sharedGameManager.getShotSpin());
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -193,9 +198,8 @@ namespace AutoPlay {
         int steps = 0;
         bool foundShot = false;
         
-        // Naikkan dari 10 → 40 steps/frame. Dengan angleStep=0.003 dan 40 steps:
-        // ~524 frame (~8 detik di 60fps) untuk full scan. Lebih cepat dari sebelumnya
-        // (10 steps = ~2094 frame = ~35 detik) tanpa kehilangan akurasi.
+        // FIX SPEED: 10 steps/frame terlalu lambat → ~35 detik full scan.
+        // 40 steps/frame → ~8 detik. Akurasi sama karena angleStep tetap kecil.
         while (steps < 40 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
@@ -203,25 +207,7 @@ namespace AutoPlay {
 
             std::vector<double> powers = {666.0, 466.0, 266.0, 100.0};
             for (double power : powers) {
-                // WAJIB forceFullSimulation=true supaya scratch terdeteksi benar
-                gPrediction->forceFullSimulation = true;
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
-                gPrediction->forceFullSimulation = false;
-                
-                // Cek scratch PERTAMA
-                if (!gPrediction->guiData.balls[0].onTable) continue;
-
-                // Safety margin pocket
-                {
-                    bool tooClose = false;
-                    auto& cbf = gPrediction->guiData.balls[0];
-                    for (const auto& pocket : getPockets()) {
-                        double dx = cbf.predictedPosition.x - pocket.x;
-                        double dy = cbf.predictedPosition.y - pocket.y;
-                        if (dx*dx + dy*dy < 144.0) { tooClose = true; break; }
-                    }
-                    if (tooClose) continue;
-                }
                 
                 bool isPotentiallyValid = false;
                 int targetIdx = -1;
@@ -335,6 +321,11 @@ namespace AutoPlay {
             LOGI("AutoPlaySlow: Finished scan, nothing found.");
             isScanning = false;
             currentScanAngle = 0.0;
+            // FIX MACET: Reset lastFailedCuePos supaya ScanFast bisa coba lagi
+            // di giliran berikutnya. Tanpa ini ScanFast selalu skip karena
+            // lastFailedCuePos == posisi cue ball saat ini → langsung SLOW lagi
+            // → macet di pertengahan game.
+            lastFailedCuePos = { -1000.0, -1000.0 };
             state = IDLE;
         }
     }
@@ -400,12 +391,15 @@ namespace AutoPlay {
                 
                 double score = distCueToTarget + distTargetToPocket;
                 
-                // Power formula: v = sqrt(2 * a * s) dengan a=196 (sliding deceleration).
-                // Tapi ini asumsi energy konservasi penuh. Di handleBallBallCollision,
-                // hanya komponen normal yang ditransfer — komponen tangensial hilang.
-                // Faktor koreksi: 1.0 + sin²(cutAngle) * 0.4 untuk kompensasi energy loss.
-                // Untuk simplifikasi: pakai faktor 1.3 flat (equivalent ~45° cut average).
+                // Calculate minimum velocity needed to cover the distance
+                // v^2 = u^2 + 2as -> u = sqrt(2 * a * s)
+                // We use the sliding friction constant from Prediction.h: 196.0
+                // _frictionProperties._velocityReductionSlidingFactor
                 constexpr double slidingDeceleration = 196.0;
+                // FIX POWER: Faktor 1.3 untuk kompensasi energy loss di ball-ball collision.
+                // Formula dasar v=sqrt(2*a*s) asumsi konservasi energi penuh.
+                // Tapi handleBallBallCollision hanya transfer komponen normal → target
+                // ball dapat energi lebih sedikit → power selalu undershoot tanpa faktor ini.
                 double requiredVelocity = sqrt(2.0 * slidingDeceleration * score) * 1.3;
                 
                 double power = requiredVelocity;
@@ -418,126 +412,87 @@ namespace AutoPlay {
         
         std::sort(candidates.begin(), candidates.end());
         
-        // Angle offsets untuk kompensasi ghost ball inaccuracy (±1°, ±2°)
-        static const double kDeltaAngles[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
-        // Power factors: base dulu, lalu naik (shot jauh), lalu turun (shot dekat)
-        static const double kPowerFactors[] = {1.0, 1.15, 0.85, 1.3, 0.7};
-
+        // TODO: more scans around the candidate angle while target ball is hit
+        // more power scan
         bool foundShot = false;
         for (const auto& cand : candidates) {
-            double baseAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+            gPrediction->determineShotResult(true, angle, cand.power, sharedGameManager.getShotSpin(), cand);
+            if (!gPrediction->firstHitIsTarget) continue;
 
-            bool simOk = false;
-            double confirmedAngle = baseAngle;
-            double confirmedPower = cand.power;
+            if (!gPrediction->guiData.balls[0].onTable) continue; // cue ball should not be pocketed
 
-            // WAJIB forceFullSimulation=true: simulasi berjalan penuh sampai semua bola
-            // berhenti → scratch dan 8ball masuk terdeteksi benar.
-            // Tanpa ini: early-return saat first hit → cue ball belum selesai bergerak
-            // → balls[0].onTable=true walau sebenarnya scratch → shot lolos.
-            gPrediction->forceFullSimulation = true;
-            for (double dA : kDeltaAngles) {
-                if (simOk) break;
-                double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
-                for (double pf : kPowerFactors) {
-                    double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
-                    gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
+            if (myclass == Ball::Classification::NINE_BALL_RULE) {
+                auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                if (!firstHit) continue;
+                // Must hit the target ball (which is the lowest numbered ball) first
+                if (firstHit->index != cand.idx) continue;
 
-                    // Cek scratch PERTAMA
-                    if (!gPrediction->guiData.balls[0].onTable) continue;
-
-                    // Safety margin: tolak kalau cue ball akhir terlalu dekat pocket.
-                    // POCKET_RADIUS=8.0, BALL_RADIUS=3.800475.
-                    // Threshold = (POCKET_RADIUS * 1.5)^2 = ~144 — cover suction zone game.
-                    {
-                        bool tooClose = false;
-                        auto& cbf = gPrediction->guiData.balls[0];
-                        for (const auto& pocket : getPockets()) {
-                            double dx = cbf.predictedPosition.x - pocket.x;
-                            double dy = cbf.predictedPosition.y - pocket.y;
-                            if (dx*dx + dy*dy < 144.0) { tooClose = true; break; }
-                        }
-                        if (tooClose) continue;
+                int bestPottedIdx = -1;
+                for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                    auto& ball = gPrediction->guiData.balls[i];
+                    if (ball.originalOnTable && !ball.onTable) {
+                        if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
+                        
+                        if (i == 9) { bestPottedIdx = 9; break; }
+                        if (bestPottedIdx == -1 || i == cand.idx) bestPottedIdx = i;
                     }
+                }
 
-                    if (!gPrediction->firstHitIsTarget) continue;
+                if (bestPottedIdx == -1) continue;
+                int effectiveTargetIdx = bestPottedIdx;
 
-                    // Nine ball path
-                    if (myclass == Ball::Classification::NINE_BALL_RULE) {
-                        auto firstHit = gPrediction->guiData.collision.firstHitBall;
-                        if (!firstHit || firstHit->index != cand.idx) continue;
+                if (nominatedPocket < 6 && gPrediction->guiData.balls[effectiveTargetIdx].pocketIndex != nominatedPocket) continue;
 
-                        int bestPottedIdx = -1;
-                        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                            auto& ball = gPrediction->guiData.balls[i];
-                            if (ball.originalOnTable && !ball.onTable) {
-                                if (nominatedPocket < 6 && ball.pocketIndex != nominatedPocket) continue;
-                                if (i == 9) { bestPottedIdx = 9; break; }
-                                if (bestPottedIdx == -1 || i == cand.idx) bestPottedIdx = i;
-                            }
-                        }
-                        if (bestPottedIdx == -1) continue;
+                LOGI("AutoPlay: 9ball: Found good angle %f with power %f", angle, cand.power);
+                g_CurrentCandidate = cand;
+                g_CurrentCandidate.idx = effectiveTargetIdx;
+                g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[effectiveTargetIdx].pocketIndex;
 
-                        confirmedAngle = tryAngle;
-                        confirmedPower = tryPower;
-                        simOk = true;
+                foundShot = true;
+                Shoot(angle, cand.power);
+                break;
+            }
 
-                        gPrediction->forceFullSimulation = false;
-                        g_CurrentCandidate = cand;
-                        g_CurrentCandidate.idx = bestPottedIdx;
-                        g_CurrentCandidate.angle = confirmedAngle;
-                        g_CurrentCandidate.power = confirmedPower;
-                        g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[bestPottedIdx].pocketIndex;
-                        foundShot = true;
-                        Shoot(confirmedAngle, confirmedPower);
-                        goto fastScanDone;
-                    }
+            if (gPrediction->guiData.balls[cand.idx].onTable) continue; // target ball was not potted
+            if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue; // target ball did not go into target pocket
 
-                    // 8ball / regular path
-                    if (gPrediction->guiData.balls[cand.idx].onTable) continue;
-                    if (gPrediction->guiData.balls[cand.idx].pocketIndex != cand.pocketIndex) continue;
+            std::vector<int> currentPottedBalls;
+            bool isAngleGood = false;
+            for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
+                Prediction::Ball& ball = gPrediction->guiData.balls[i];
+                bool match = (myclass == Ball::Classification::ANY)
+                    ? (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL)
+                    : (ball.classification == myclass);
 
-                    {
-                        bool isAngleGood = false;
-                        for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
-                            auto& ball = gPrediction->guiData.balls[i];
-                            bool match = (myclass == Ball::Classification::ANY)
-                                ? (ball.classification != Ball::Classification::CUE_BALL && ball.classification != Ball::Classification::EIGHT_BALL)
-                                : (ball.classification == myclass);
-                            if (match && ball.originalOnTable && !ball.onTable) { isAngleGood = true; break; }
-                        }
-
-                        if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
-                            auto fh = gPrediction->guiData.collision.firstHitBall;
-                            if (myclass != Ball::Classification::ANY && fh->classification != myclass) isAngleGood = false;
-                            else if (myclass == Ball::Classification::ANY && fh->classification == Ball::Classification::EIGHT_BALL) isAngleGood = false;
-                        }
-
-                        // 8ball masuk prematur
-                        auto& ball8 = gPrediction->guiData.balls[8];
-                        if (isAngleGood && ball8.originalOnTable && !ball8.onTable && myclass != Ball::Classification::EIGHT_BALL) isAngleGood = false;
-
-                        if (!isAngleGood) continue;
-                    }
-
-                    confirmedAngle = tryAngle;
-                    confirmedPower = tryPower;
-                    simOk = true;
-                    break;
+                if (match && ball.originalOnTable && !ball.onTable) {
+                    currentPottedBalls.push_back(i);
+                    isAngleGood = true;
                 }
             }
-            gPrediction->forceFullSimulation = false;
-            if (!simOk) continue;
 
-            LOGI("AutoPlay: FAST - Ball %d angle %f power %f", cand.idx, confirmedAngle, confirmedPower);
-            g_CurrentCandidate = cand;
-            g_CurrentCandidate.angle = confirmedAngle;
-            g_CurrentCandidate.power = confirmedPower;
-            foundShot = true;
-            Shoot(confirmedAngle, confirmedPower);
-            break;
+            if (isAngleGood && gPrediction->guiData.collision.firstHitBall) {
+                 auto firstHit = gPrediction->guiData.collision.firstHitBall;
+                 if (myclass != Ball::Classification::ANY && firstHit->classification != myclass) isAngleGood = false;
+                 else if (myclass == Ball::Classification::ANY && firstHit->classification == Ball::Classification::EIGHT_BALL) isAngleGood = false;
+            }
+
+            auto& cueBallRef = gPrediction->guiData.balls[0];
+            if (isAngleGood && cueBallRef.originalOnTable && !cueBallRef.onTable) isAngleGood = false;
+            
+            auto& eightBallRef = gPrediction->guiData.balls[8];
+            bool isEightBallPotted = eightBallRef.originalOnTable && !eightBallRef.onTable;
+            if (isAngleGood && isEightBallPotted && myclass != Ball::Classification::EIGHT_BALL) isAngleGood = false;
+            
+            // if (!currentPottedBalls.empty() && startingPottedBalls != currentPottedBalls && isAngleGood) {
+            if (isAngleGood) {
+                LOGI("AutoPlay: Found good angle %f with power %f", angle, cand.power);
+                g_CurrentCandidate = cand;
+                foundShot = true;
+                Shoot(angle, cand.power);
+                break;
+            }
         }
-        fastScanDone:
 
         if (!foundShot) {
             lastFailedCuePos = cueBall.initialPosition;
@@ -632,13 +587,20 @@ namespace AutoPlay {
         buttonClicker.Update();
         DrawToggleButton();
 
-        // Animation timeout: paksa lanjut setelah 1.5 detik supaya tidak stuck
-        if (!g_turnTimerStarted) { g_turnStartTime = ImGui::GetTime(); g_turnTimerStarted = true; }
-        bool animStuck = (ImGui::GetTime() - g_turnStartTime > 1.5);
-        if (isAnimationActive() && !animStuck) return;
+        // FIX STUCK BREAK/AWAL: isAnimationActive() bisa return true selamanya
+        // saat power bar animasi dari giliran sebelumnya belum clear.
+        // Tanpa timeout → scan tidak pernah mulai → waktu habis.
+        // Paksa lanjut setelah 2 detik.
+        if (!g_turnTimerStarted) {
+            g_turnStartTime = ImGui::GetTime();
+            g_turnTimerStarted = true;
+        }
+        bool animTimeout = (ImGui::GetTime() - g_turnStartTime > 2.0);
+        if (isAnimationActive() && !animTimeout) return;
 
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            // Reset state saat giliran berakhir — jangan warisi kandidat dari turn lama
+            // FIX STALE STATE: Reset semua saat giliran berakhir.
+            // Tanpa ini giliran berikutnya warisi lastFailedCuePos dan kandidat lama.
             g_CurrentCandidate.idx = -1;
             lastFailedCuePos = { -1000.0, -1000.0 };
             state = IDLE;
