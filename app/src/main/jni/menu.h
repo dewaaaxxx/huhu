@@ -1536,9 +1536,9 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
               DrawLicenseBlockScreen(io);
               DrawLicenseStatusOverlay(io);
           } else {
-              if (!g_isInGame) { g_menu.isOpen = false; g_menu.isMinimized = false; }
-              if (g_isInGame) DrawFloatingButton(io);
-              DrawMenu(io);
+              if (!g_menu.isOpen) { g_menu.isMinimized = false; }
+                 DrawFloatingButton(io);
+                 DrawMenu(io);
 
   {
       SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
