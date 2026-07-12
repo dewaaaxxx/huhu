@@ -1,6 +1,5 @@
 #pragma once
 #include "include/includes.h"
-#include "mod/ButtonClicker.h"
 #include "game.h"
 #include "game/Ruleset.h"
 #include "imgui/inc/8bp.h"
@@ -14,8 +13,6 @@
 #include <Vector/Vectors.h>
 #include <imgui/imgui.h>
 #include "icons/icons.h"
-#include <android/asset_manager.h>
-#include <android/asset_manager_jni.h>
 
 using namespace ImGui;
 using namespace std;
@@ -269,6 +266,8 @@ INLINE void DrawExpired(ImGuiIO& io) {
     PopStyleColor();
 }
 
+#include "mod/ButtonClicker.h"
+
 static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
 
 static void DrawLiveStatusOverlay(ImGuiIO& io) {
@@ -277,7 +276,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     const char* stateStr = "Idle";
     switch (AutoPlay::state) {
         case AutoPlay::SCANNING:   stateStr = "Scanning";   break;
-   //     case AutoPlay::WAITING:    stateStr = "Waiting";    break;
+    //   case AutoPlay::WAITING:    stateStr = "Waiting";    break;
         case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
         case AutoPlay::EXECUTING:  stateStr = "Executing";  break;
         default:                   stateStr = "Idle";       break;
@@ -1468,9 +1467,6 @@ static void DrawFloatingButton(ImGuiIO& io) {
       End();
   }
  
-static ImFont* g_CustomFont = nullptr;
-
-
 INLINE void SetupImgui() {
     PACKAGE_NAME = string(getcmdline());
 
@@ -1491,38 +1487,9 @@ INLINE void SetupImgui() {
     io.IniFilename = persistent_bool["bImguiAutoSave"] ? INI_PATH.c_str() : nullptr;
     io.ConfigWindowsMoveFromTitleBarOnly = persistent_bool["bMoveOnlyWithTitleBar"];
 
-    // ================================================================
-    // FONT DEFAULT
-    // ================================================================
     ImFontConfig font_cfg;
     font_cfg.SizePixels = persistent_float["fFontScale"];
     io.Fonts->AddFontDefault(&font_cfg);
-
-    // ================================================================
-    // FONT KUSTOM DARI ASSETS
-    // ================================================================
-    AAssetManager* assetManager = ImGui_ImplAndroid_GetAssetManager();
-    if (assetManager) {
-        AAsset* asset = AAssetManager_open(assetManager, "fonts/cihuy.otf", AASSET_MODE_BUFFER);
-        if (asset) {
-            size_t size = AAsset_getLength(asset);
-            void* data = malloc(size);
-            AAsset_read(asset, data, size);
-            AAsset_close(asset);
-            
-            g_CustomFont = io.Fonts->AddFontFromMemoryTTF(data, size, 28.0f);
-            
-            if (g_CustomFont) {
-                LOGI("Custom font loaded successfully!");
-            } else {
-                LOGI("Failed to load custom font!");
-            }
-        } else {
-            LOGI("Font file not found in assets/fonts/");
-        }
-    }
-
-    io.Fonts->Build();
 
     ImGui_ImplAndroid_Init();
     ImGui_ImplOpenGL3_Init(O("#version 300 es"));
@@ -1576,24 +1543,13 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
 
   {
       SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
-        Begin(O("##PoweredBy"), nullptr,
-              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-              ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
-              ImGuiWindowFlags_NoInputs);
-        
-        // ================================================================
-        // PAKAI FONT KUSTOM (KALO ADA)
-        // ================================================================
-        if (g_CustomFont) {
-            ImGui::PushFont(g_CustomFont);
-            TextColored(ImColor(0, 255, 0, 255), O("Powered By @Cmengine"));
-            ImGui::PopFont();
-        } else {
-            TextColored(ImColor(0, 255, 0, 255), O("Powered By @Cmengine"));
-        }
-        
-        End();
+      Begin(O("##PoweredBy"), nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
+            ImGuiWindowFlags_NoInputs);
+      TextColored(ImColor(0, 255, 0, 255), O("Powered By @Cmegine"));
+      End();
   }
 
               DrawLiveStatusOverlay(io);
