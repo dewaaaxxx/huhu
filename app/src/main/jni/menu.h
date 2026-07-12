@@ -1,6 +1,5 @@
 #pragma once
 #include "include/includes.h"
-#include "mod/ButtonClicker.h"
 #include "game.h"
 #include "game/Ruleset.h"
 #include "imgui/inc/8bp.h"
@@ -14,7 +13,6 @@
 #include <Vector/Vectors.h>
 #include <imgui/imgui.h>
 #include "icons/icons.h"
-//#include "game/inc/AutoPlay.impl.h"
 
 using namespace ImGui;
 using namespace std;
@@ -268,6 +266,8 @@ INLINE void DrawExpired(ImGuiIO& io) {
     PopStyleColor();
 }
 
+#include "mod/ButtonClicker.h"
+
 static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
 
 static void DrawLiveStatusOverlay(ImGuiIO& io) {
@@ -276,7 +276,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     const char* stateStr = "Idle";
     switch (AutoPlay::state) {
         case AutoPlay::SCANNING:   stateStr = "Scanning";   break;
-        //case AutoPlay::WAITING:    stateStr = "Waiting";    break;
+        case AutoPlay::WAITING:    stateStr = "Waiting";    break;
         case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
         case AutoPlay::EXECUTING:  stateStr = "Executing";  break;
         default:                   stateStr = "Idle";       break;
@@ -336,81 +336,6 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     PopStyleColor(2);
 }
 
-INLINE void DrawAutoQueue() {
-    if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
-        static std::chrono::steady_clock::time_point last_call_time;
-        static std::chrono::steady_clock::time_point countdown_start;
-        static bool counting = false;
-
-        auto now = std::chrono::steady_clock::now();
-
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_call_time).count() > 500) {
-            counting = false;
-        }
-        last_call_time = now;
-
-        if (!counting) {
-            counting = true;
-            countdown_start = now;
-        }
-
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - countdown_start).count();
-        int remaining_ms = 3000 - elapsed;
-
-        if (remaining_ms <= 0) {
-            if (sharedMenuManager.getMenuStateId() == 13) PopMenuState(13);
-            StartLastMatch();
-            counting = false;
-            return;
-        }
-
-        SetNextWindowPos(ImVec2(Width / 2.0f, Height / 2.0f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-        SetNextWindowSize(ImVec2(360, 260), ImGuiCond_Always);
-        PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.12f, 0.98f));
-        PushStyleVar(ImGuiStyleVar_WindowRounding, 20.0f);
-
-        if (Begin(O("##AutoQueue"), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
-            ImDrawList* dl = GetWindowDrawList();
-            ImVec2 winPos = GetWindowPos();
-            ImVec2 winSize = GetWindowSize();
-            
-            DrawGradientRect(dl, winPos, ImVec2(winPos.x + winSize.x, winPos.y + 70), IM_COL32(40, 100, 180, 255), IM_COL32(60, 140, 200, 255), true);
-            dl->AddRectFilled(winPos, ImVec2(winPos.x + winSize.x, winPos.y + 20), IM_COL32(40, 100, 180, 255), 20.0f, ImDrawFlags_RoundCornersTop);
-            
-            ImVec2 titleSize = CalcTextSize(O("Auto Queue"));
-            dl->AddText(ImVec2(winPos.x + (winSize.x - titleSize.x) * 0.5f, winPos.y + 22), IM_COL32(255, 255, 255, 255), O("Auto Queue"));
-
-            SetCursorPosY(90);
-            float font_scale = 3.5f;
-            SetWindowFontScale(font_scale);
-
-            std::string count_str = std::to_string((remaining_ms / 1000) + 1);
-            auto text_size = CalcTextSize(count_str.c_str());
-            SetCursorPosX((winSize.x - text_size.x) * 0.5f);
-            TextColored(ImVec4(0.35f, 0.7f, 1.0f, 1.0f), "%s", count_str.c_str());
-
-            SetWindowFontScale(1.0f);
-
-            SetCursorPosY(winSize.y - 75);
-            SetCursorPosX(25);
-            PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.25f, 0.25f, 1.0f));
-            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.35f, 0.35f, 1.0f));
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
-            
-            if (Button(O("Cancel"), ImVec2(winSize.x - 50, 50))) {
-                persistent_bool[O("bAutoQueue")] = false;
-                counting = false;
-            }
-            
-            PopStyleVar();
-            PopStyleColor(2);
-            End();
-        }
-        PopStyleVar();
-        PopStyleColor();
-    }
-}
-
 INLINE void DrawESP(ImDrawList* draw) {
     if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
         if (!sharedGameManager) return;
@@ -433,11 +358,8 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
         if (!mainStateManager) return;
-        if (!mainStateManager.isInGame()) {
-        if (persistent_bool[O("bAutoQueue")]) {
-            if (!sharedMenuManager.isInQueue()) DrawAutoQueue();
-        } return;
-        }
+        g_isInGame = mainStateManager.isInGame();
+          if (!g_isInGame) return;
 
         auto visualCue = sharedGameManager.mVisualCue();
 
@@ -553,7 +475,6 @@ static std::string ReadNSString(ptr str) {
     return result;
 }
 
-static float g_sideBtnsX      = 0.0f;   // 0 = uninitialized → default right side
 // Shared vertical position for DrawToggleButton and DrawFloatingButton (they move together)
 static float g_sideBtnsY      = 0.0f;
 // Kept for linker compatibility — no longer used for animation
@@ -714,48 +635,15 @@ static void DrawContentArea(float winW, float winH) {
             SectionHeader("Draw");
             need_save |= ToggleSwitch(O("Draw Lines"),       &persistent_bool[O("bESP_DrawPredictionLine")]);
             need_save |= ToggleSwitch(O("Draw Pockets"),     &persistent_bool[O("bESP_DrawPocketsShotState")]);
-           // need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
+            need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
 
             // ═══════════════════════════════════════════════════
             // ═══════════════════════════════════════════════════
             // SECTION: Auto Play
             // ═══════════════════════════════════════════════════
             Dummy(ImVec2(0, 8));
-            SectionHeader("Auto");
+            SectionHeader("Auto Play");
             need_save |= ToggleSwitch(O("Auto Play"), &persistent_bool[O("bAutoPlay")]);
-            need_save |= ToggleSwitch(O("Auto Queue"), &persistent_bool[O("bAutoQueue")]);
-            
-            Dummy(ImVec2(0, 20));
-            
-            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Mode"));
-            Dummy(ImVec2(0, 8));
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-            PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(15, 12));
-            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
-            PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
-            SetNextItemWidth(GetContentRegionAvail().x);
-            need_save |= Combo("##mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0");
-            PopStyleColor(2);
-            PopStyleVar(2);
-            
-            if (persistent_int["iAutoQueue_Mode"] == 1) {
-                Dummy(ImVec2(0, 15));
-                TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Bet Percent"));
-                Dummy(ImVec2(0, 8));
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-                PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
-                PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
-                PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.3f, 0.6f, 0.95f, 1.0f));
-                PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
-                SetNextItemWidth(GetContentRegionAvail().x);
-                need_save |= SliderInt("##betpercent", &persistent_int["iAutoQueue_BetPercent"], 1, 100, "%d%%");
-                PopStyleColor(3);
-                PopStyleVar(2);
-            }
-            
-            Dummy(ImVec2(0, 25));
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("You will be auto queued to"));
-            TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("the last game mode you played"));
 
             Dummy(ImVec2(0, 4));
             break;
@@ -1084,7 +972,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
                 // ── Header info text (kanan logo) ─────────────────────────
                 {
-                    static const char* s_prefix = "V.1.0 | 8BP 56.26.0 | x64 | FPS ";
+                    static const char* s_prefix = "CM | 8BP 56.26 V : 1.0 | x64 | FPS ";
                     static char s_fps[16];
                     snprintf(s_fps, sizeof(s_fps), "%.0f", io.Framerate);
 
@@ -1271,19 +1159,13 @@ static void DrawFloatingButton(ImGuiIO& io) {
     float winSize = btnR * 2.0f + 8.0f;
     const float rightMargin = 24.0f;
 
-    // Initialise shared position to bottom-right (first frame only)
-    if (g_sideBtnsX <= 0.0f)
-        g_sideBtnsX = io.DisplaySize.x - rightMargin;
-    if (g_sideBtnsY <= 0.0f)
-        g_sideBtnsY = io.DisplaySize.y - 150.0f;
+    if (g_sideBtnsY <= 0.0f) g_sideBtnsY = io.DisplaySize.y - 150.0f;
 
-    // Floating button sits 100px ABOVE the toggle button, centred on same X anchor
     float toggleWidth = 78.f + (GetStyle().WindowPadding.x * 2.0f);
-    float posX = ImClamp(g_sideBtnsX - toggleWidth + (toggleWidth - winSize) * 0.5f,
-                         0.0f, io.DisplaySize.x - winSize);
-    float posY = g_sideBtnsY - 100.0f;
+    float fixedX = io.DisplaySize.x - rightMargin - toggleWidth + (toggleWidth - winSize) * 0.5f;
+    float posY   = g_sideBtnsY - 100.0f;
 
-    SetNextWindowPos(ImVec2(posX, posY), ImGuiCond_Always);
+    SetNextWindowPos(ImVec2(fixedX, posY), ImGuiCond_Always);
     SetNextWindowSize(ImVec2(winSize, winSize), ImGuiCond_Always);
 
     PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
@@ -1295,23 +1177,18 @@ static void DrawFloatingButton(ImGuiIO& io) {
               ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
 
         ImDrawList* dl = GetWindowDrawList();
-        ImVec2 center  = ImVec2(posX + winSize * 0.5f, posY + winSize * 0.5f);
+        ImVec2 center  = ImVec2(fixedX + winSize * 0.5f, posY + winSize * 0.5f);
 
         InvisibleButton(O("##FloatBtnHit"), ImVec2(winSize, winSize));
 
-        // Drag: move BOTH X and Y freely anywhere on screen
+        // Drag moves the whole button group
         if (IsItemActive() && IsMouseDragging(ImGuiMouseButton_Left)) {
-            g_sideBtnsX += io.MouseDelta.x;
             g_sideBtnsY += io.MouseDelta.y;
-            // Clamp: keep buttons fully visible
-            g_sideBtnsX = ImClamp(g_sideBtnsX, toggleWidth, io.DisplaySize.x - 4.0f);
-            g_sideBtnsY = ImClamp(g_sideBtnsY, 140.0f,      io.DisplaySize.y - 80.0f);
+            g_sideBtnsY = ImClamp(g_sideBtnsY, 140.0f, io.DisplaySize.y - 130.0f);
         }
 
-        // Tap opens menu — use total drag distance, not just Y
-        ImVec2 dd = ImGui::GetMouseDragDelta(0);
-        bool wasTap = (dd.x * dd.x + dd.y * dd.y) < 16.0f;  // <4px total movement
-        if (IsItemHovered() && IsMouseReleased(0) && wasTap) {
+        // Tap opens menu
+        if (IsItemHovered() && IsMouseReleased(0) && ImGui::GetMouseDragDelta(0).y == 0) {
             g_menu.isOpen = true;
         }
 
@@ -1324,15 +1201,12 @@ static void DrawFloatingButton(ImGuiIO& io) {
         // Red accent border
         dl->AddCircle(center, btnR, IM_COL32(200, 30, 30, hov ? 255 : 180), 0, 2.5f);
 
-        // LYN4XP logo inside floating button
-        static GLuint s_lyn4xp_float_tex = LoadTextureFromMemory(lyn4xp_logo_png, lyn4xp_logo_png_len);
-        if (s_lyn4xp_float_tex) {
-            float imgSz = btnR * 0.95f;
-            ImVec2 iMin(center.x - imgSz, center.y - imgSz);
-            ImVec2 iMax(center.x + imgSz, center.y + imgSz);
-            dl->AddImageRounded((void*)(intptr_t)s_lyn4xp_float_tex, iMin, iMax,
-                ImVec2(0,0), ImVec2(1,1), IM_COL32(255,255,255,230), btnR * 0.60f);
-        }
+        // Simple "8BP" label inside
+        const char* lbl = "8BP";
+        ImVec2 tSz = CalcTextSize(lbl);
+        SetWindowFontScale(1.0f);
+        dl->AddText(ImVec2(center.x - tSz.x * 0.5f, center.y - tSz.y * 0.5f),
+                    IM_COL32(220, 220, 230, 255), lbl);
     }
     End();
     PopStyleVar(2);
@@ -1592,6 +1466,8 @@ static void DrawFloatingButton(ImGuiIO& io) {
       PopStyleColor();
       End();
   }
+ 
+static ImFont* g_CustomFont = nullptr;
 
 
 INLINE void SetupImgui() {
@@ -1614,9 +1490,38 @@ INLINE void SetupImgui() {
     io.IniFilename = persistent_bool["bImguiAutoSave"] ? INI_PATH.c_str() : nullptr;
     io.ConfigWindowsMoveFromTitleBarOnly = persistent_bool["bMoveOnlyWithTitleBar"];
 
+    // ================================================================
+    // FONT DEFAULT
+    // ================================================================
     ImFontConfig font_cfg;
     font_cfg.SizePixels = persistent_float["fFontScale"];
     io.Fonts->AddFontDefault(&font_cfg);
+
+    // ================================================================
+    // FONT KUSTOM DARI ASSETS
+    // ================================================================
+    AAssetManager* assetManager = ImGui_ImplAndroid_GetAssetManager();
+    if (assetManager) {
+        AAsset* asset = AAssetManager_open(assetManager, "fonts/cihuy.otf", AASSET_MODE_BUFFER);
+        if (asset) {
+            size_t size = AAsset_getLength(asset);
+            void* data = malloc(size);
+            AAsset_read(asset, data, size);
+            AAsset_close(asset);
+            
+            g_CustomFont = io.Fonts->AddFontFromMemoryTTF(data, size, 28.0f);
+            
+            if (g_CustomFont) {
+                LOGI("Custom font loaded successfully!");
+            } else {
+                LOGI("Failed to load custom font!");
+            }
+        } else {
+            LOGI("Font file not found in assets/fonts/");
+        }
+    }
+
+    io.Fonts->Build();
 
     ImGui_ImplAndroid_Init();
     ImGui_ImplOpenGL3_Init(O("#version 300 es"));
@@ -1663,19 +1568,31 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
           if (g_LicenseStatusCode == LSC_BANNED || g_LicenseStatusCode == LSC_EXPIRED || g_LicenseStatusCode == LSC_VERSION_OLD) {
               DrawLicenseBlockScreen(io);
               DrawLicenseStatusOverlay(io);
-          }
+          } else {
+              if (!g_isInGame) { g_menu.isOpen = false; g_menu.isMinimized = false; }
+              if (g_isInGame) DrawFloatingButton(io);
+              DrawMenu(io);
 
-        DrawFloatingButton(io);
-        DrawMenu(io);
   {
       SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
-      Begin(O("##PoweredBy"), nullptr,
-            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
-            ImGuiWindowFlags_NoInputs);
-      TextColored(ImColor(0, 255, 0, 255), O(""));
-      End();
+        Begin(O("##PoweredBy"), nullptr,
+              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+              ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
+              ImGuiWindowFlags_NoInputs);
+        
+        // ================================================================
+        // PAKAI FONT KUSTOM (KALO ADA)
+        // ================================================================
+        if (g_CustomFont) {
+            ImGui::PushFont(g_CustomFont);
+            TextColored(ImColor(0, 255, 0, 255), O("Powered By @Cmengine"));
+            ImGui::PopFont();
+        } else {
+            TextColored(ImColor(0, 255, 0, 255), O("Powered By @Cmengine"));
+        }
+        
+        End();
   }
 
               DrawLiveStatusOverlay(io);
