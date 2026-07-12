@@ -598,7 +598,7 @@ namespace AutoPlay {
             };
 
             if (DrawPlayPauseButton(bAutoPlaying)) {
-                bAutoPlaying = !bAutoPlaying;
+        //        bAutoPlaying = !bAutoPlaying;
                 if (bAutoPlaying) ClearState();
                 // if (!bAutoPlaying && powerSlider.Active) powerSlider.Cancel();
             }
