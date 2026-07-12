@@ -1,5 +1,6 @@
 #pragma once
 #include "include/includes.h"
+#include "mod/ButtonClicker.h"
 #include "game.h"
 #include "game/Ruleset.h"
 #include "imgui/inc/8bp.h"
@@ -266,8 +267,6 @@ INLINE void DrawExpired(ImGuiIO& io) {
     PopStyleColor();
 }
 
-#include "mod/ButtonClicker.h"
-
 static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
 
 static void DrawLiveStatusOverlay(ImGuiIO& io) {
@@ -276,7 +275,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     const char* stateStr = "Idle";
     switch (AutoPlay::state) {
         case AutoPlay::SCANNING:   stateStr = "Scanning";   break;
-        case AutoPlay::WAITING:    stateStr = "Waiting";    break;
+   //     case AutoPlay::WAITING:    stateStr = "Waiting";    break;
         case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
         case AutoPlay::EXECUTING:  stateStr = "Executing";  break;
         default:                   stateStr = "Idle";       break;
