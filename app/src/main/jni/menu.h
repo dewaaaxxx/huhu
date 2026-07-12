@@ -14,6 +14,8 @@
 #include <Vector/Vectors.h>
 #include <imgui/imgui.h>
 #include "icons/icons.h"
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
 
 using namespace ImGui;
 using namespace std;
