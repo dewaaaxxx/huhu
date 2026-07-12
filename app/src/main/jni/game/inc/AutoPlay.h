@@ -691,10 +691,10 @@ namespace AutoPlay {
 
     bool isAnimationActive() {
         auto visualCue = sharedGameManager.mVisualCue();
-        if (!visualCue) return true;
+        if (!visualCue) return false; // null = belum init, bukan animasi aktif
         
         auto _powerBarView = F(ptr, visualCue + 0x510);
-        if (!_powerBarView) return true;
+        if (!_powerBarView) return false; // null = belum ada power bar, bukan stuck
 
         auto activeAction = M(ptr, libmain + 0x2de6f30, ptr)(_powerBarView); // CCAction getActiveAction
         if (activeAction) {
