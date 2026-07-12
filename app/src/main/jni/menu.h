@@ -1,5 +1,6 @@
 #pragma once
 #include "include/includes.h"
+#include "mod/ButtonClicker.h"
 #include "game.h"
 #include "game/Ruleset.h"
 #include "imgui/inc/8bp.h"
@@ -265,8 +266,6 @@ INLINE void DrawExpired(ImGuiIO& io) {
     PopStyleVar(3);
     PopStyleColor();
 }
-
-#include "mod/ButtonClicker.h"
 
 static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
 
