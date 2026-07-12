@@ -1663,11 +1663,10 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
           if (g_LicenseStatusCode == LSC_BANNED || g_LicenseStatusCode == LSC_EXPIRED || g_LicenseStatusCode == LSC_VERSION_OLD) {
               DrawLicenseBlockScreen(io);
               DrawLicenseStatusOverlay(io);
-          } else {
-              if (!g_isInGame) { g_menu.isOpen = false; g_menu.isMinimized = false; }
-              if (g_isInGame) DrawFloatingButton(io);
-              DrawMenu(io);
+          }
 
+        DrawFloatingButton(io);
+        DrawMenu(io);
   {
       SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
       Begin(O("##PoweredBy"), nullptr,
