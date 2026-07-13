@@ -763,10 +763,6 @@ namespace AutoPlay {
             state = IDLE;
             NativeTouchesEnd(5, 0, 0);   // Joystick
             NativeTouchesEnd(10, 0, 0);  // Slider
-            if (powerSlider.Active) {
-                powerSlider.Active = false;
-                powerSlider.state = PowerSlider::IDLE;
-            }
             return;
         }
 
@@ -980,6 +976,7 @@ namespace AutoPlay {
                 ClearState();
                 state = IDLE; humanState = HUM_IDLE;
             }
+            return;
         }
     }
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
