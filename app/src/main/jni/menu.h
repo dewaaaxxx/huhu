@@ -291,11 +291,11 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         case AutoPlay::HUM_IDLE:            humanStr = "Idle"; break;
         case AutoPlay::HUM_THINKING:        humanStr = "Thinking"; break;
         case AutoPlay::HUM_OVERSHOOTING:    humanStr = "Overshoot"; break;
-        case AutoPlay::HUM_CORRECTING:      humanStr = "🔄 Correcting"; break;
-        case AutoPlay::HUM_HOLDING:         humanStr = "✋ Holding"; break;
-        case AutoPlay::HUM_STABILIZING:     humanStr = "⚡ Stabilizing"; break;
-        case AutoPlay::HUM_PULLING:         humanStr = "📊 Pulling"; break;
-        case AutoPlay::HUM_DELAY_BEFORE_SHOT: humanStr = "⏳ Delay"; break;
+        case AutoPlay::HUM_CORRECTING:      humanStr = "Correcting"; break;
+        case AutoPlay::HUM_HOLDING:         humanStr = "Holding"; break;
+        case AutoPlay::HUM_STABILIZING:     humanStr = "Stabilizing"; break;
+        case AutoPlay::HUM_PULLING:         humanStr = "Pulling"; break;
+        case AutoPlay::HUM_DELAY_BEFORE_SHOT: humanStr = "Delay"; break;
         default:                            humanStr = "Idle"; break;
     }
 
