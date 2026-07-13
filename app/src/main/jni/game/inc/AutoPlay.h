@@ -251,6 +251,7 @@ namespace AutoPlay {
         targetAngle = angle;
         targetPower = power;
         startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+        setAimAngle(angle);
         stateStartTime = nowSec();
         humanState = HUM_THINKING;
     }
@@ -275,7 +276,7 @@ namespace AutoPlay {
     }
     
     void Shoot(double angle, double power = 0.f) {
-        setAimAngle(angle);
+        //setAimAngle(angle);
         gPrediction->determineShotResult(true, angle, power);
 
         bool nominating = false;
