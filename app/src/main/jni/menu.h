@@ -1,6 +1,6 @@
 #pragma once
 #include "include/includes.h"
-//#include "mod/ButtonClicker.h"
+#include "mod/ButtonClicker.h"
 #include "game.h"
 #include "game/Ruleset.h"
 #include "imgui/inc/8bp.h"
