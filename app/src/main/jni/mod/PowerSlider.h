@@ -76,7 +76,7 @@ struct PowerSlider {
     void SimulateDrag(ImVec4 Rect, float ShotPower = 0.f, float DragTime = .7f, float HoldTime = 0.35f) {
         if (this->Active) return;
         
-        ShotPower = 666.f;
+      //  ShotPower = 666.f;
         this->ShotPower = ShotPower > 0.f ? ShotPower : 666.0f;
         float powerRatio = std::min(this->ShotPower / 666.0f, 1.0f);
         
@@ -119,7 +119,7 @@ struct PowerSlider {
 
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
             } else {
-                return Cancel();
+                //return Cancel();
                 // Ensure we hit the target exactly
                 this->CurrentPos = this->TargetPos;
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
