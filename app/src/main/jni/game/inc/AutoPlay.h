@@ -951,7 +951,6 @@ namespace AutoPlay {
           //  if (powerSlider.Active) return;
             // Slider selesai — set angle+power di memory sekali lagi biar sync
             setAimAngle(targetAngle);
-
             if (!powerSlider.Active) {
                 float sliderXPercent = 0.080f;
                 float sliderX = Width * sliderXPercent;
@@ -962,8 +961,10 @@ namespace AutoPlay {
                 float sliderYEnd = Height * 0.872f;
                 ImVec4 sliderRect(sliderX - 20.0f, sliderYStart, 40.0f, sliderYEnd - sliderYStart);
 
-                powerSlider.SimulateDrag(sliderRect, targetPower, 1.5f, 0.8f);
+                powerSlider.SimulateDrag(sliderRect, targetPower, 0.85f, 0.4f);
             }
+            gPrediction->determineShotResult(true, targetAngle, targetPower,
+                                             lockedShotSpin, g_CurrentCandidate);
             if (powerSlider.Active) {
                 return; // Wait for slider simulation to finish and release touch
             }
@@ -975,19 +976,9 @@ namespace AutoPlay {
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
             setAimAngle(targetAngle);
             if (now - stateStartTime >= 0.4) {
-                // Set angle + power di memory sekali lagi biar tidak drift
-                setAimAngle(targetAngle);
-                sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
-                // FIRE SHOT
-                if (powerSlider.Active) {
-                    return; // Wait for slider simulation to finish and release touch
-                }
                 humanShotLocked = false;
-                humanState = HUM_IDLE;
                 ClearState();
-                state = IDLE;
-            }
-            return;
+                state = IDLE; humanState = HUM_IDLE;
         }
     }
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
