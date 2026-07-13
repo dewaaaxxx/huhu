@@ -354,10 +354,6 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         // ================================================================
         if (hasCandidate) {
             TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), O("Shot Found!"));
-        } else if (isScanning) {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 200, 255, 255)), O("Scanning..."));
-        } else if (isExecuting && AutoPlay::humanState != AutoPlay::HUM_IDLE) {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 200, 0, 255)), O("Aiming..."));
         } else {
             // ================================================================
             // IDLE: GAK TULIS APA-APA (BIAR GAK DOBEL)
