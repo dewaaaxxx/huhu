@@ -762,6 +762,7 @@ namespace AutoPlay {
             if (humanState == HUM_IDLE) {
                 state = SCANNING;
                 scan = FAST;
+            }
         } if (state == SCANNING) {
             if (scan == FAST) ScanFast();
             if (scan == SLOW) {
