@@ -251,7 +251,7 @@ namespace AutoPlay {
         targetAngle = angle;
         targetPower = power;
         startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-        setAimAngle(angle);
+   //     setAimAngle(angle);
         stateStartTime = nowSec();
         humanState = HUM_THINKING;
     }
@@ -328,7 +328,7 @@ namespace AutoPlay {
         bool foundShot = false;
         
         // Scan 10 angles per frame
-        while (steps < 20 && currentScanAngle < maxAngle) {
+        while (steps < 35 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
