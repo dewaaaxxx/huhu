@@ -25,8 +25,14 @@ double normalizeAngle(double angle) {
 }
 
 double CalculateRequiredPower(double totalDist) {
-    // AIMX Physics Sync: v = sqrt(2 * a * s) where a = 196.0
-    double p = sqrt(totalDist * 2.0 * 196.0); 
+    // v = sqrt(2 * a * s), a = 196.0 (sliding deceleration dari engine)
+    // Faktor 1.4 untuk kompensasi:
+    // 1. Energy loss di ball-ball collision (~15-20%)
+    // 2. Gap antara POCKET_RADIUS_SQUARE (suction zone) dan BALL_RADIUS_SQUARE (IN_POCKET threshold)
+    //    → bola bisa masuk suction zone tapi kehabisan energy sebelum mencapai threshold masuk
+    //    → bola berhenti persis di depan lubang
+    // 3. Energy loss di cushion untuk bank shot (~20-25%)
+    double p = sqrt(totalDist * 2.0 * 196.0) * 1.4;
     if (p < 100.0) p = 100.0; 
     if (p > 666.0) p = 666.0;
     return p;
@@ -333,8 +339,9 @@ namespace AutoPlay {
             currentScanAngle += angleStep;
             steps++;
 
-            // 🎱 Physics-based power progression
-            std::vector<double> powers = { CalculateRequiredPower(150.0), CalculateRequiredPower(350.0), (double)powerMax };                   
+            // Power sweep dengan step lebih rapat supaya bank shot
+            // yang butuh power spesifik tidak terlewat
+            std::vector<double> powers = {666.0, 550.0, 440.0, 330.0, 220.0, 120.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, lockedShotSpin);
                 
@@ -452,6 +459,9 @@ namespace AutoPlay {
             LOGI("AutoPlaySlow: Finished scan, nothing found.");
             isScanning = false;
             currentScanAngle = 0.0;
+            // Reset lastFailedCuePos supaya ScanFast bisa coba lagi di giliran berikutnya
+            // Tanpa ini ScanFast selalu skip karena posisi cue ball sama → macet
+            lastFailedCuePos = { -1000.0, -1000.0 };
             state = IDLE;
         }
     }
@@ -538,9 +548,9 @@ namespace AutoPlay {
         // VALIDASI DENGAN POWER SWEEP + ANGLE REFINEMENT
         // ================================================================
         static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
-        // Power sweep: kompensasi energy loss di collision dan jarak berbeda-beda.
-        // Base power dulu, lalu naik (shot jauh), lalu turun (shot dekat).
-        static const double kPowerFactors[] = {1.0, 1.15, 0.85, 1.3, 0.7};
+        // Power sweep diperlebar ke atas (1.5x, 1.6x) untuk bank shot
+        // yang butuh power ekstra karena energy loss di cushion
+        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.6, 0.55};
         
         bool foundShot = false;
         for (const auto& cand : candidates) {
@@ -752,14 +762,15 @@ namespace AutoPlay {
         if (isAnimationActive()) return;
 
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            // Kalau human state machine sedang jalan, jangan interrupt
             if (humanState != HUM_IDLE) return;
-            // Kalau sedang EXECUTING (nomination → shot), jangan reset
-            g_CurrentCandidate.idx = -1;
             if (state == EXECUTING) return;
+            // Reset semua state saat giliran berakhir
+            g_CurrentCandidate.idx = -1;
+            lastFailedCuePos = { -1000.0, -1000.0 };
+            spinIsLocked = false;
             state = IDLE;
-            NativeTouchesEnd(5, 0, 0);   // Joystick
-        //    NativeTouchesEnd(10, 0, 0);  // Slider
+            scan = FAST;
+            NativeTouchesEnd(5, 0, 0);
             return;
         }
 
