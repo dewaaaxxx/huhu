@@ -979,6 +979,7 @@ namespace AutoPlay {
                 humanShotLocked = false;
                 ClearState();
                 state = IDLE; humanState = HUM_IDLE;
+            }
         }
     }
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
