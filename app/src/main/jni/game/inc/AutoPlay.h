@@ -132,6 +132,8 @@ namespace AutoPlay {
     bool didSetAngle = false;
     bool bAutoPlaying = false;
 
+    static FrictionProperties cachedFriction = {0.2, 0.0111, 0.025, 0.0014577259475218659, 196, 10.878, 9.8};
+
     enum State {
         IDLE,           // Waiting for player turn or Autoplay to be enabled
         SCANNING,       // Searching for the best shot candidate (calculating physics)
