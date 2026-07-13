@@ -13,6 +13,10 @@ using namespace ImGui;
 
 constexpr double maxAngle = 360.0 / (180.0 / M_PI);
 
+static double EaseInOutCubic(double t) {
+    return t < 0.5 ? 4 * t * t * t : 1.0 - pow(-2.0 * t + 2.0, 3.0) / 2.0;
+}
+
 double normalizeAngle(double angle) {
     double newAngle = angle;
     if (newAngle >= maxAngle) newAngle = fmod(newAngle, maxAngle);
@@ -127,6 +131,8 @@ bool IsShotValid() {
 }
 
 Point2D lastFailedCuePos = { -1000.0, -1000.0 };
+Point2D lastSetCuePos = {-1000, -1000};
+
 namespace AutoPlay {
     double lastSetAngle = 0.f;
     bool didSetAngle = false;
@@ -766,10 +772,10 @@ namespace AutoPlay {
                 uint nominatedPocket = sharedGameManager.getNominatedPocket();
                 if (nominatedPocket == (uint)g_CurrentCandidate.pocketIndex) {
                     // Nominasi confirmed — re-validasi shot dengan full simulation
-                    gPrediction->forceFullSimulation = true;
+                    
                     gPrediction->determineShotResult(true, pendingShotAngle, pendingShotPower,
                                                      lockedShotSpin, g_CurrentCandidate);
-                    gPrediction->forceFullSimulation = false;
+                    
 
                     // Scratch check setelah nominasi
                     if (!gPrediction->guiData.balls[0].onTable) {
