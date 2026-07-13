@@ -283,9 +283,9 @@ namespace AutoPlay {
             state = NOMINATING;
             nominationFrameCounter = 0;
         } else {
+            pendingShotPower = power;
+            pendingShotAngle = angle;
             takeShot(angle, power);
-            ClearState();
-            state = IDLE;
         }
     }
     
@@ -755,8 +755,13 @@ namespace AutoPlay {
         }
 
         if (state == IDLE) {
-            state = SCANNING;
-            scan = FAST;
+                        // BUG FIX #2: Kalau humanState != HUM_IDLE, artinya human state machine
+            // sedang jalan (aim, pull, dll). Jangan langsung SCANNING lagi —
+            // biarkan human machine selesai dulu. Tanpa guard ini, IDLE langsung
+            // jadi SCANNING → ScanFast lagi → Shoot lagi → loop selamanya.
+            if (humanState == HUM_IDLE) {
+                state = SCANNING;
+                scan = FAST;
         } if (state == SCANNING) {
             if (scan == FAST) ScanFast();
             if (scan == SLOW) {
@@ -946,17 +951,21 @@ namespace AutoPlay {
             humanState = HUM_DELAY_BEFORE_SHOT;
             return;
         }
-    
-        // 7. HUM_DELAY_BEFORE_SHOT (0.4s cooldown, lalu fire shot)
+        
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
             setAimAngle(targetAngle);
             if (now - stateStartTime >= 0.4) {
+                // Set angle + power di memory sekali lagi biar tidak drift
+                setAimAngle(targetAngle);
+                sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+                // FIRE SHOT
                 if (powerSlider.Active) {
                     return; // Wait for slider simulation to finish and release touch
                 }
                 humanShotLocked = false;
+                humanState = HUM_IDLE;
                 ClearState();
-                state = IDLE; humanState = HUM_IDLE;
+                state = IDLE;
             }
             return;
         }
