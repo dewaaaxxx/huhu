@@ -272,23 +272,50 @@ static void DrawToggleButton(); // forward declaration — defined after DrawFlo
 static void DrawLiveStatusOverlay(ImGuiIO& io) {
     if (!persistent_bool[O("bAutoPlay")]) return;
 
+    // ================================================================
+    // 1. STATE AUTOPLAY
+    // ================================================================
     const char* stateStr = "Idle";
     switch (AutoPlay::state) {
         case AutoPlay::SCANNING:   stateStr = "Scanning";   break;
-    //   case AutoPlay::WAITING:    stateStr = "Waiting";    break;
         case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
         case AutoPlay::EXECUTING:  stateStr = "Executing";  break;
         default:                   stateStr = "Idle";       break;
     }
-    bool isPlaying = AutoPlay::bAutoPlaying;
 
-    const float padH  = 24.0f;  // jarak dari tepi kiri layar
-    const float padV  = 24.0f;  // jarak dari tepi bawah layar
+    // ================================================================
+    // 2. HUMAN STATE
+    // ================================================================
+    const char* humanStr = "Idle";
+    switch (AutoPlay::humanState) {
+        case AutoPlay::HUM_IDLE:            humanStr = "Idle"; break;
+        case AutoPlay::HUM_THINKING:        humanStr = "Thinking"; break;
+        case AutoPlay::HUM_OVERSHOOTING:    humanStr = "Overshoot"; break;
+        case AutoPlay::HUM_CORRECTING:      humanStr = "🔄 Correcting"; break;
+        case AutoPlay::HUM_HOLDING:         humanStr = "✋ Holding"; break;
+        case AutoPlay::HUM_STABILIZING:     humanStr = "⚡ Stabilizing"; break;
+        case AutoPlay::HUM_PULLING:         humanStr = "📊 Pulling"; break;
+        case AutoPlay::HUM_DELAY_BEFORE_SHOT: humanStr = "⏳ Delay"; break;
+        default:                            humanStr = "Idle"; break;
+    }
+
+    // ================================================================
+    // 3. SHOT FOUND
+    // ================================================================
+    bool hasCandidate = (g_CurrentCandidate.idx != -1);
+    bool isExecuting = (AutoPlay::state == AutoPlay::EXECUTING);
+    bool isScanning = (AutoPlay::state == AutoPlay::SCANNING);
+
+    // ================================================================
+    // 4. WINDOW SETUP
+    // ================================================================
+    const float padH  = 24.0f;
+    const float padV  = 24.0f;
 
     SetNextWindowPos(
         ImVec2(padH, io.DisplaySize.y - padV),
         ImGuiCond_Always,
-        ImVec2(0.0f, 1.0f)   // anchor: kiri-bawah
+        ImVec2(0.0f, 1.0f)
     );
 
     PushStyleColor(ImGuiCol_WindowBg, IM_COL32(14, 14, 18, 185));
@@ -303,24 +330,39 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
               ImGuiWindowFlags_NoInputs     | ImGuiWindowFlags_NoSavedSettings |
               ImGuiWindowFlags_AlwaysAutoResize)) {
 
-        // Accent bar di kiri window
         ImDrawList* dl = GetWindowDrawList();
         ImVec2 wp = GetWindowPos();
         ImVec2 ws = GetWindowSize();
-        ImU32 accentCol = isPlaying
-            ? IM_COL32(0, 210, 130, 255)
-            : IM_COL32(200, 40, 40, 255);
+
+        // Accent bar: Hijau kalo ada shot, Biru kalo scanning, Abu-abu kalo idle
+        ImU32 accentCol;
+        if (hasCandidate) {
+            accentCol = IM_COL32(0, 255, 0, 255);        // Hijau = Shot Found
+        } else if (isScanning || isExecuting) {
+            accentCol = IM_COL32(0, 200, 255, 255);      // Biru = Aktif
+        } else {
+            accentCol = IM_COL32(100, 100, 100, 180);     // Abu-abu = Idle
+        }
         dl->AddRectFilled(wp, ImVec2(wp.x + 3.0f, wp.y + ws.y), accentCol, 12.0f, ImDrawFlags_RoundCornersLeft);
 
         SetWindowFontScale(0.95f);
 
-        // Baris 1: Auto Play ON / OFF
-        ImU32 playCol = isPlaying ? IM_COL32(0, 210, 130, 255) : IM_COL32(200, 60, 60, 255);
-        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Auto Play "));
-        SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(playCol), isPlaying ? O("ON") : O("OFF"));
+        // ================================================================
+        // BARIS 1: Shot Found (GANTI Auto Play ON/OFF)
+        // ================================================================
+        if (hasCandidate) {
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), O("Shot Found!"));
+        } else if (isScanning) {
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 200, 255, 255)), O("Scanning..."));
+        } else if (isExecuting && AutoPlay::humanState != AutoPlay::HUM_IDLE) {
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 200, 0, 255)), O("Aiming..."));
+        } else {
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(130, 130, 145, 255)), O("Idle"));
+        }
 
-        // Baris 2: State
+        // ================================================================
+        // BARIS 2: State
+        // ================================================================
         ImU32 stateCol = (AutoPlay::state != AutoPlay::IDLE)
             ? IM_COL32(0, 200, 255, 255)
             : IM_COL32(130, 130, 145, 255);
@@ -328,9 +370,20 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         SameLine(0, 0);
         TextColored(ImGui::ColorConvertU32ToFloat4(stateCol), stateStr);
 
+        // ================================================================
+        // BARIS 3: Human State (KALO AKTIF)
+        // ================================================================
+        if (AutoPlay::humanState != AutoPlay::HUM_IDLE) {
+            ImU32 humanCol = IM_COL32(255, 200, 0, 255);
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Human     "));
+            SameLine(0, 0);
+            TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);
+        }
+
         SetWindowFontScale(1.0f);
     }
     End();
+
     PopStyleVar(3);
     PopStyleColor(2);
 }
@@ -1547,7 +1600,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
             ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
             ImGuiWindowFlags_NoInputs);
-      TextColored(ImColor(0, 255, 0, 255), O("Powered By @Cmegine"));
+      TextColored(ImColor(0, 255, 0, 255), O("Powered By @Cmengine"));
       End();
   }
 
