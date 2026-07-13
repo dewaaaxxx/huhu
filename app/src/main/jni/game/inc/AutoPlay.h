@@ -301,6 +301,12 @@ namespace AutoPlay {
             currentScanAngle = 0.0;
             isScanning = true;
             lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
+            // Lock spin saat mulai scan baru
+            if (!spinIsLocked) {
+                if (bAutoSpin) applyAutoSpin();
+                lockedShotSpin = sharedGameManager.getShotSpin();
+                spinIsLocked = true;
+            }
         }
 
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
@@ -324,7 +330,7 @@ namespace AutoPlay {
             
             
             for (double power : powers) {
-                gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
+                gPrediction->determineShotResult(true, angle, power, lockedShotSpin);
                 
                 bool isPotentiallyValid = false;
                 int targetIdx = -1;
@@ -447,6 +453,12 @@ namespace AutoPlay {
     void ScanFast(double angleStep = 0.1f) {
         if (g_CurrentCandidate.idx != -1) return;
         if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
+        
+        if (!spinIsLocked) {
+            if (bAutoSpin) applyAutoSpin();
+            lockedShotSpin = sharedGameManager.getShotSpin();
+            spinIsLocked = true;
+        }
 
         double startingAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
         
@@ -515,7 +527,7 @@ namespace AutoPlay {
                 
                 // Adjust for spin
                 auto spin = sharedGameManager.getShotSpin();
-                double power = PhysicalValidator::adjustPowerForSpin(basePower, spin) * 1.15;
+                double power = PhysicalValidator::adjustPowerForSpin(basePower, spin);
                 
                 if (power > 666.0) power = 666.0;
                 
@@ -546,7 +558,7 @@ namespace AutoPlay {
                 double tryAngle = NumberUtils::normalizeDoublePrecision(normalizeAngle(baseAngle + dA));
                 for (double pf : kPowerFactors) {
                     double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
-                    gPrediction->determineShotResult(true, tryAngle, tryPower, sharedGameManager.getShotSpin(), cand);
+                    gPrediction->determineShotResult(true, tryAngle, tryPower, lockedShotSpin, cand);
         
                     if (!gPrediction->firstHitIsTarget) continue;
 
@@ -748,9 +760,13 @@ namespace AutoPlay {
             // Kalau sedang EXECUTING (nomination → shot), jangan reset
             g_CurrentCandidate.idx = -1;
             if (state == EXECUTING) return;
-            NativeTouchesEnd(5, 0, 0);
-            NativeTouchesEnd(10, 0, 0);
             state = IDLE;
+            NativeTouchesEnd(5, 0, 0);   // Joystick
+            NativeTouchesEnd(10, 0, 0);  // Slider
+            if (powerSlider.Active) {
+                powerSlider.Active = false;
+                powerSlider.state = PowerSlider::IDLE;
+            }
             return;
         }
 
@@ -935,6 +951,7 @@ namespace AutoPlay {
           //  if (powerSlider.Active) return;
             // Slider selesai — set angle+power di memory sekali lagi biar sync
             setAimAngle(targetAngle);
+
             if (!powerSlider.Active) {
                 float sliderXPercent = 0.080f;
                 float sliderX = Width * sliderXPercent;
@@ -947,7 +964,9 @@ namespace AutoPlay {
 
                 powerSlider.SimulateDrag(sliderRect, targetPower, 1.5f, 0.8f);
             }
-            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+            if (powerSlider.Active) {
+                return; // Wait for slider simulation to finish and release touch
+            }
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
             return;
@@ -998,7 +1017,7 @@ namespace AutoPlay {
             // dari yang dipakai saat scan → trajectory berbeda → lines meleset.
             double curPower = sharedGameManager.mVisualCue().getShotPower();
             if (curPower < 10.0) curPower = 400.0; // fallback kalau belum ada power
-            gPrediction->determineShotResult(false, curAngle, curPower, sharedGameManager.getShotSpin());
+            gPrediction->determineShotResult(false, curAngle, curPower, lockedShotSpin);
         }
     }
     }
