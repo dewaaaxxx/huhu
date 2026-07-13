@@ -303,8 +303,8 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     // 3. SHOT FOUND
     // ================================================================
     bool hasCandidate = (g_CurrentCandidate.idx != -1);
-    bool isExecuting = (AutoPlay::state == AutoPlay::EXECUTING);
     bool isScanning = (AutoPlay::state == AutoPlay::SCANNING);
+    bool isExecuting = (AutoPlay::state == AutoPlay::EXECUTING);
 
     // ================================================================
     // 4. WINDOW SETUP
@@ -334,21 +334,23 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         ImVec2 wp = GetWindowPos();
         ImVec2 ws = GetWindowSize();
 
-        // Accent bar: Hijau kalo ada shot, Biru kalo scanning, Abu-abu kalo idle
+        // ================================================================
+        // ACCENT BAR
+        // ================================================================
         ImU32 accentCol;
         if (hasCandidate) {
-            accentCol = IM_COL32(0, 255, 0, 255);        // Hijau = Shot Found
+            accentCol = IM_COL32(0, 255, 0, 255);
         } else if (isScanning || isExecuting) {
-            accentCol = IM_COL32(0, 200, 255, 255);      // Biru = Aktif
+            accentCol = IM_COL32(0, 200, 255, 255);
         } else {
-            accentCol = IM_COL32(100, 100, 100, 180);     // Abu-abu = Idle
+            accentCol = IM_COL32(100, 100, 100, 180);
         }
         dl->AddRectFilled(wp, ImVec2(wp.x + 3.0f, wp.y + ws.y), accentCol, 12.0f, ImDrawFlags_RoundCornersLeft);
 
         SetWindowFontScale(0.95f);
 
         // ================================================================
-        // BARIS 1: Shot Found (GANTI Auto Play ON/OFF)
+        // BARIS 1: STATUS UTAMA (Shot Found / Scanning / Aiming)
         // ================================================================
         if (hasCandidate) {
             TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), O("Shot Found!"));
@@ -357,11 +359,13 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         } else if (isExecuting && AutoPlay::humanState != AutoPlay::HUM_IDLE) {
             TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 200, 0, 255)), O("Aiming..."));
         } else {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(130, 130, 145, 255)), O("Idle"));
+            // ================================================================
+            // IDLE: GAK TULIS APA-APA (BIAR GAK DOBEL)
+            // ================================================================
         }
 
         // ================================================================
-        // BARIS 2: State
+        // BARIS 2: STATE
         // ================================================================
         ImU32 stateCol = (AutoPlay::state != AutoPlay::IDLE)
             ? IM_COL32(0, 200, 255, 255)
@@ -371,14 +375,14 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         TextColored(ImGui::ColorConvertU32ToFloat4(stateCol), stateStr);
 
         // ================================================================
-        // BARIS 3: Human State (KALO AKTIF)
+        // BARIS 3: HUMAN STATE (SELALU TAMPIL)
         // ================================================================
-        if (AutoPlay::humanState != AutoPlay::HUM_IDLE) {
-            ImU32 humanCol = IM_COL32(255, 200, 0, 255);
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Human     "));
-            SameLine(0, 0);
-            TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);
-        }
+        ImU32 humanCol = (AutoPlay::humanState != AutoPlay::HUM_IDLE)
+            ? IM_COL32(255, 200, 0, 255)
+            : IM_COL32(130, 130, 145, 255);
+        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Human     "));
+        SameLine(0, 0);
+        TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);
 
         SetWindowFontScale(1.0f);
     }
@@ -387,7 +391,6 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     PopStyleVar(3);
     PopStyleColor(2);
 }
-
 INLINE void DrawESP(ImDrawList* draw) {
     if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
         if (!sharedGameManager) return;
