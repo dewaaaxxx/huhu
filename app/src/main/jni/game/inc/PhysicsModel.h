@@ -8,7 +8,8 @@
 // 🎱 Enhanced Physical Model for 8 Ball Pool
 namespace Physics {
     // Ball physics constants
-    constexpr double BALL_RADIUS = 0.028575; // Standard 8-ball radius (57.15mm diameter)
+    // 🔥 Gunakan radius yang sama dengan game
+//    constexpr double BALL_RADIUS = 2.85; // 57.15mm dalam unit game
     constexpr double TABLE_FRICTION = 0.1; // Sliding friction coefficient
     constexpr double ROLLING_FRICTION = 0.01; // Rolling friction
     constexpr double RESTITUTION = 0.95; // Coefficient of restitution (bounciness)

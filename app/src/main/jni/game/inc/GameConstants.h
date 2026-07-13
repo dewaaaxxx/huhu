@@ -3,8 +3,8 @@
 // BALL PROPERTIES
 
 inline constexpr int MAX_BALLS_COUNT = 16;
-inline constexpr double BALL_RADIUS = 3.800475;
-inline constexpr double BALL_RADIUS_SQUARE = BALL_RADIUS * BALL_RADIUS;
+inline constexpr double BALL_RADIUS = 2.85;
+inline constexpr double BALL_RADIUS_SQUARE = BALL_RADIUS * BALL_RADIUS; // otomatis berubah
 
 
 

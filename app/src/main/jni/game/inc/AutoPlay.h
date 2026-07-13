@@ -6,7 +6,7 @@
 
 #include "ScreenTable.h"
 
-#include "mod/PowerSlider.h"
+//#include "mod/PowerSlider.h"
 #include "PhysicsModel.h"
 
 using namespace ImGui;
@@ -74,7 +74,7 @@ struct PhysicalValidator {
         double totalDistance = distToCueBall + distToPocket;
         
         // Physics: v² = 2 * a * s, where a = friction deceleration
-        double frictionDeceleration = 9.81 * friction._velocityReductionRollingFactor;
+        double frictionDeceleration = 196.0; // sliding deceleration engine
         double requiredVelocity = std::sqrt(2.0 * frictionDeceleration * totalDistance);
         
         // Cap at max power
@@ -92,7 +92,7 @@ struct PhysicalValidator {
     static bool isPocketAccessible(
         const Point2D& targetBallPos,
         const Point2D& pocketPos,
-        double ballRadius = Physics::BALL_RADIUS
+        double ballRadius = BALL_RADIUS
     ) {
         Point2D delta = pocketPos - targetBallPos;
         double distance = std::sqrt(delta.square());
@@ -508,7 +508,7 @@ namespace AutoPlay {
                 if (distTargetToPocket < 0.1) continue;
                 
                 Point2D direction = toPocket * (1.0 / distTargetToPocket);
-                Point2D ghostBallPos = ball.initialPosition - direction * (2.0 * 3.800475);
+                Point2D ghostBallPos = ball.initialPosition - direction * (2.0 * BALL_RADIUS);
                 Point2D shotLine = ghostBallPos - cueBall.initialPosition;
                 double distCueToTarget = sqrt(shotLine.square());
                 double angle = atan2(shotLine.y, shotLine.x);
@@ -750,7 +750,7 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
-     //   powerSlider.Update();
+  //      powerSlider.Update();
 
         if (isAnimationActive()) return;
 
@@ -762,7 +762,7 @@ namespace AutoPlay {
             if (state == EXECUTING) return;
             state = IDLE;
             NativeTouchesEnd(5, 0, 0);   // Joystick
-          //  NativeTouchesEnd(10, 0, 0);  // Slider
+        //    NativeTouchesEnd(10, 0, 0);  // Slider
             return;
         }
 
@@ -861,7 +861,7 @@ namespace AutoPlay {
     }
         };
     
-                // 1. HUM_THINKING (0.5s pause)
+        // 1. HUM_THINKING (0.5s pause)
         if (humanState == HUM_THINKING) {
             if (now >= stateStartTime) {
                 overshootOffset = (gen() % 2 == 0 ? 1 : -1) * 0.058;
