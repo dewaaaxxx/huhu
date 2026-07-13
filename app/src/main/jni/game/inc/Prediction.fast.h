@@ -440,13 +440,14 @@ void Prediction::Ball::findNextCollision(void *pData, double *time) {
                 delta.y = pockets[i].y - this->predictedPosition.y;
                 deltaSquare = delta.x * delta.x + delta.y * delta.y;
                 if (deltaSquare < POCKET_RADIUS_SQUARE) {
-                    unkTime = *time * 120.0; // F(double, libmain + 0x4dae0c0);
-                    this->velocity.x += delta.x * unkTime;
-                    this->velocity.y += delta.y * unkTime;
-                    if (deltaSquare < BALL_RADIUS_SQUARE * 1.5) { this->state = ::Ball::State::IN_POCKET; }
-                        this->pocketIndex = i;
-                        Prediction::pocketStatus[i] = true;
-                    }
+    unkTime = *time * 120.0;
+    this->velocity.x += delta.x * unkTime;
+    this->velocity.y += delta.y * unkTime;
+    if (deltaSquare < BALL_RADIUS_SQUARE * 1.5) {
+        this->state = ::Ball::State::IN_POCKET;
+        this->pocketIndex = i;
+        Prediction::pocketStatus[i] = true;
+    }
                 }
             }
         }
