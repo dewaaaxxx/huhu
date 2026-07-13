@@ -492,7 +492,7 @@ namespace AutoPlay {
                         g_CurrentCandidate.pocketIndex = gPrediction->guiData.balls[effectiveTargetIdx].pocketIndex;
                         foundShot = true;
                         Shoot(confirmedAngle, confirmedPower);
-                        goto scanFastDone;
+                        break;   // ← TAMBAH INI
                     }
         
                     // ================================================================
@@ -543,6 +543,7 @@ namespace AutoPlay {
                     simOk = true;
                     break;
                 }
+                if (simOk || foundShot) break;  // ← BREAK ANGLE LOOP
             }
         
             if (!simOk) continue;
@@ -554,8 +555,7 @@ namespace AutoPlay {
             foundShot = true;
             Shoot(confirmedAngle, confirmedPower);
             break;
-        }
-        scanFastDone;
+        };
 
         if (!foundShot) {
             lastFailedCuePos = cueBall.initialPosition;
