@@ -9,7 +9,7 @@
 namespace Physics {
     // Ball physics constants
     // 🔥 Gunakan radius yang sama dengan game
-//    constexpr double BALL_RADIUS = 2.85; // 57.15mm dalam unit game
+    constexpr double BALL_RADIUS = 3.800475; // 57.15mm dalam unit game
     constexpr double TABLE_FRICTION = 0.1; // Sliding friction coefficient
     constexpr double ROLLING_FRICTION = 0.01; // Rolling friction
     constexpr double RESTITUTION = 0.95; // Coefficient of restitution (bounciness)
