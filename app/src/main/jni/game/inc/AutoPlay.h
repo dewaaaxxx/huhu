@@ -750,7 +750,7 @@ namespace AutoPlay {
     
     void Update() {
         buttonClicker.Update();
-        powerSlider.Update();
+     //   powerSlider.Update();
 
         if (isAnimationActive()) return;
 
@@ -762,7 +762,7 @@ namespace AutoPlay {
             if (state == EXECUTING) return;
             state = IDLE;
             NativeTouchesEnd(5, 0, 0);   // Joystick
-            NativeTouchesEnd(10, 0, 0);  // Slider
+          //  NativeTouchesEnd(10, 0, 0);  // Slider
             return;
         }
 
@@ -956,29 +956,15 @@ namespace AutoPlay {
 
         // 4. STABILIZE & LOCK (0.4s) - joystick still held from HUM_HOLDING
         if (humanState == HUM_STABILIZING) {
-            float jX = Width * 0.83f;
-            float jY = Height * 0.82f;
-            float jR = 65.0f;
-            // Keep joystick actively held at target angle during stabilization.
-            // This ensures game always has native touch direction = targetAngle.
-            NativeTouchesMove(5, jX + (float)cos(targetAngle) * jR, 
-                                 jY + (float)sin(targetAngle) * jR);
+            NativeTouchesMove(5, Width * 0.83f + cos(targetAngle) * 65.0f,
+                                 Height * 0.82f + sin(targetAngle) * 65.0f);
             setAimAngle(targetAngle);
+    
             if (now - stateStartTime >= 0.4) {
-                if (currentMode == MODE_AUTO_PLAY) {
-                    // Release joystick RIGHT when transitioning to power pull.
-                    // Minimal gap between release and power start prevents aim reset.
-                    NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR, 
-                                        jY + (float)sin(targetAngle) * jR);
-                    stateStartTime = now;
-                    startPower = getCurrentPower();
-                    targetPower = pendingShotPower;
-                    humanState = HUM_PULLING;
-                } else {
-                    NativeTouchesEnd(5, jX + (float)cos(targetAngle) * jR, 
-                                        jY + (float)sin(targetAngle) * jR);
-                    state = IDLE; humanState = HUM_IDLE;
-                }
+                NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
+                                    Height * 0.82f + sin(targetAngle) * 65.0f);    
+                stateStartTime = now;
+                humanState = HUM_PULLING;
             }
             return;
         }
