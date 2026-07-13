@@ -24,6 +24,14 @@ double normalizeAngle(double angle) {
     return newAngle;
 }
 
+static double CalculateRequiredPower(double totalDist) {
+    // AIMX Physics Sync: v = sqrt(2 * a * s) where a = 196.0
+    double p = sqrt(totalDist * 2.0 * 196.0); 
+    if (p < 100.0) p = 100.0; 
+    if (p > 666.0) p = 666.0;
+    return p;
+}
+
 Candidate g_CurrentCandidate = { -1 };
 
 extern void DrawEightBallLoading(ImDrawList*);
@@ -183,6 +191,9 @@ namespace AutoPlay {
     static inline int humanNominationPocket = -1;
     static inline SpinPreset spinPreset = SPIN_CENTER;
     static inline bool bAutoSpin = false;
+    static inline float powerMin = 100.0f;
+    static inline float powerMax = 666.0f;
+    static inline bool bCushionShot = true;
     // FIX ROOT CAUSE: Spin yang dipakai saat scan HARUS SAMA dengan spin saat tembak.
     // Kalau berbeda: simulasi scan → hasil A, simulasi display dengan spin lain → hasil B
     // → prediction line kelihatan masuk sebelum tembak, tapi setelah tembak meleset.
@@ -506,30 +517,166 @@ namespace AutoPlay {
                 Point2D toPocket = pocket - ball.initialPosition;
                 double distTargetToPocket = sqrt(toPocket.square());
                 if (distTargetToPocket < 0.1) continue;
-                
                 Point2D direction = toPocket * (1.0 / distTargetToPocket);
                 Point2D ghostBallPos = ball.initialPosition - direction * (2.0 * BALL_RADIUS);
-                Point2D shotLine = ghostBallPos - cueBall.initialPosition;
-                double distCueToTarget = sqrt(shotLine.square());
-                double angle = atan2(shotLine.y, shotLine.x);
-                
-                if (angle < 0) angle += 2 * M_PI;
-                
-                double score = distCueToTarget + distTargetToPocket;
-                
-                // 🎱 Physics-based power calculation
-                double basePower = PhysicalValidator::calculateRealisticPower(
-                    cueBall.initialPosition,
-                    ball.initialPosition,
-                    pocket,
-                    cachedFriction
-                );
-                
-                // Adjust for spin
-                auto spin = sharedGameManager.getShotSpin();
-                double power = PhysicalValidator::adjustPowerForSpin(basePower, spin);
-                
-                if (power > 666.0) power = 666.0;
+
+                // 1. Direct Shot
+                {
+                    Point2D shotLine = ghostBallPos - cueBall.initialPosition;
+                    double distCueToTarget = sqrt(shotLine.square());
+                    double angle = atan2(shotLine.y, shotLine.x);
+                    if (angle < 0) angle += 2 * M_PI;
+                    double score = distCueToTarget + distTargetToPocket;
+                    double power = CalculateRequiredPower(score);
+                    candidates.push_back({i, angle, score, pocketIdx, power});
+
+
+
+                }
+
+                // 2. Bank Shot (Cushion target)
+                if (bCushionShot) {
+                    for (int side = 0; side < 4; side++) {
+                        Point2D mp;
+                        switch(side) {
+                            case 0: mp = {pocket.x, -134.6 - pocket.y}; break;
+                            case 1: mp = {pocket.x, 134.6 - pocket.y}; break;
+                            case 2: mp = {-261.6 - pocket.x, pocket.y}; break;
+                            case 3: mp = {261.6 - pocket.x, pocket.y}; break;
+                        }
+                        Point2D toMir = mp - ball.initialPosition;
+                        double distP = sqrt(toMir.square());
+                        if (distP > 0.1) {
+                            Point2D ghost = ball.initialPosition - (toMir * (1.0 / distP)) * (2.0 * BALL_RADIUS);
+                            Point2D shot = ghost - cueBall.initialPosition;
+                            double distC = sqrt(shot.square());
+                            double angle = atan2(shot.y, shot.x);
+                            if (angle < 0) angle += 2 * M_PI;
+                            double score = distC + distP + 100.0;
+                            double power = CalculateRequiredPower(distC + distP) * 1.25;
+                            if (power > (double)powerMax) power = (double)powerMax;
+                            if (power < (double)powerMin) power = (double)powerMin;
+                            candidates.push_back({i, angle, score, pocketIdx, power});
+;
+                        }
+                    }
+                }
+
+                // 3. Kick Shot (Cushion cue)
+                if (bCushionShot) {
+                    for (int side = 0; side < 4; side++) {
+                        Point2D mg;
+                        switch(side) {
+                            case 0: mg = {ghostBallPos.x, -134.6 - ghostBallPos.y}; break;
+                            case 1: mg = {ghostBallPos.x, 134.6 - ghostBallPos.y}; break;
+                            case 2: mg = {-261.6 - ghostBallPos.x, ghostBallPos.y}; break;
+                            case 3: mg = {261.6 - ghostBallPos.x, ghostBallPos.y}; break;
+                        }
+                        Point2D shot = mg - cueBall.initialPosition;
+                        double distC = sqrt(shot.square());
+                        double angle = atan2(shot.y, shot.x);
+                        if (angle < 0) angle += 2 * M_PI;
+                        double score = distC + distTargetToPocket + 150.0;
+                        double power = CalculateRequiredPower(distC + distTargetToPocket) * 1.30;
+                        if (power > (double)powerMax) power = (double)powerMax;
+                        if (power < (double)powerMin) power = (double)powerMin;
+                        candidates.push_back({i, angle, score, pocketIdx, power});
+                        
+                    }
+                }
+
+                // 4. Combination Shot (A -> B -> pocket)
+                for (int j = 1; j < gPrediction->guiData.ballsCount; j++) {
+                    if (j == i) continue;
+                    auto& ballB = gPrediction->guiData.balls[j];
+                    if (!ballB.originalOnTable) continue;
+                    
+                    bool isB_Valid = false;
+                    if (isNineBallGame) {
+                        isB_Valid = true; 
+                    } else {
+                        if (onlyEightBallLeft) {
+                            isB_Valid = false;
+                        } else {
+                            isB_Valid = (myclass == Ball::Classification::ANY) ? 
+                                         (ballB.classification != Ball::Classification::EIGHT_BALL) : 
+                                         (ballB.classification == myclass);
+                        }
+                    }
+                    if (!isB_Valid) continue;
+
+                    Point2D toPocketB = pocket - ballB.initialPosition;
+                    double distBToPocket = sqrt(toPocketB.square());
+                    if (distBToPocket < 0.1) continue;
+                    Point2D directionB = toPocketB * (1.0 / distBToPocket);
+                    Point2D ghostB = ballB.initialPosition - directionB * (2.0 * BALL_RADIUS);
+                    
+                    Point2D toGhostB = ghostB - ball.initialPosition;
+                    double distAToGhostB = sqrt(toGhostB.square());
+                    if (distAToGhostB < 0.1) continue;
+                    Point2D directionA = toGhostB * (1.0 / distAToGhostB);
+                    Point2D ghostA = ball.initialPosition - directionA * (2.0 * BALL_RADIUS);
+                    
+                    Point2D shotLine = ghostA - cueBall.initialPosition;
+                    double distCueToA = sqrt(shotLine.square());
+                    double angle = atan2(shotLine.y, shotLine.x);
+                    if (angle < 0) angle += 2 * M_PI;
+                    double score = distCueToA + distAToGhostB + distBToPocket + 80.0;
+                    double power = CalculateRequiredPower(distCueToA + distAToGhostB + distBToPocket) * 1.1;
+                    if (power > (double)powerMax) power = (double)powerMax;
+                    if (power < (double)powerMin) power = (double)powerMin;
+                    candidates.push_back({i, angle, score, pocketIdx, power});
+
+                }
+
+                // 5. Kiss / Carom Shot (Cue -> A -> deflects to B -> pocket)
+                for (int j = 1; j < gPrediction->guiData.ballsCount; j++) {
+                    if (j == i) continue;
+                    auto& ballB = gPrediction->guiData.balls[j];
+                    if (!ballB.originalOnTable) continue;
+                    
+                    bool isB_Valid = false;
+                    if (isNineBallGame) {
+                        isB_Valid = true; 
+                    } else {
+                        if (onlyEightBallLeft) {
+                            isB_Valid = false;
+                        } else {
+                            isB_Valid = (myclass == Ball::Classification::ANY) ? 
+                                         (ballB.classification != Ball::Classification::EIGHT_BALL) : 
+                                         (ballB.classification == myclass);
+                        }
+                    }
+                    if (!isB_Valid) continue;
+
+                    Point2D toPocketB = pocket - ballB.initialPosition;
+                    double distBToPocket = sqrt(toPocketB.square());
+                    if (distBToPocket < 0.1) continue;
+                    Point2D directionB = toPocketB * (1.0 / distBToPocket);
+                    Point2D ghostB = ballB.initialPosition - directionB * (2.0 * BALL_RADIUS);
+                    
+                    Point2D d = ghostB - ball.initialPosition;
+                    double distD = sqrt(d.square());
+                    if (distD < 2.0 * BALL_RADIUS) continue;
+
+                    double ratio = (2.0 * BALL_RADIUS) / distD;
+                    if (ratio > 1.0) ratio = 1.0;
+                    double theta = acos(ratio);
+                    double angleD = atan2(d.y, d.x);
+
+                    for (int sign : {-1, 1}) {
+                        double angleU = angleD + sign * theta;
+                        Point2D u = {cos(angleU), sin(angleU)};
+                        Point2D ghostA = ball.initialPosition + u * (2.0 * BALL_RADIUS);
+                        
+                        Point2D shotLine = ghostA - cueBall.initialPosition;
+                        double distCueToA = sqrt(shotLine.square());
+                        double angle = atan2(shotLine.y, shotLine.x);
+                        if (angle < 0) angle += 2 * M_PI;
+                        double score = distCueToA + distD + distBToPocket + 120.0;
+                        double power = CalculateRequiredPower(distCueToA + distD + distBToPocket) * 1.2;
+                        if (power > (double)powerMax) power = (double)powerMax;
+                        if (power < (double)powerMin) power = (double)powerMin;
                 
                 candidates.push_back({i, angle, score, pocketIdx, power});
             }
