@@ -7,11 +7,11 @@
 #include <Vector/Vectors.h>
 #include <vector>
 
-#include "game/Ball.h"
+#include "8bp/Ball.h"
 
 #include <imgui/inc/persistence.h>
 
-#include "game/GameManager.h"
+#include "8bp/GameManager.h"
 
 static Vec4d table_bounds;
 static bool fastCalc = true;
