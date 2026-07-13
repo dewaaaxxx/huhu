@@ -26,14 +26,11 @@ double normalizeAngle(double angle) {
 
 double CalculateRequiredPower(double totalDist) {
     // v = sqrt(2 * a * s), a = 196.0 (sliding deceleration dari engine)
-    // Faktor 1.4 untuk kompensasi:
-    // 1. Energy loss di ball-ball collision (~15-20%)
-    // 2. Gap antara POCKET_RADIUS_SQUARE (suction zone) dan BALL_RADIUS_SQUARE (IN_POCKET threshold)
-    //    → bola bisa masuk suction zone tapi kehabisan energy sebelum mencapai threshold masuk
-    //    → bola berhenti persis di depan lubang
-    // 3. Energy loss di cushion untuk bank shot (~20-25%)
-    double p = sqrt(totalDist * 2.0 * 196.0) * 1.4;
-    if (p < 100.0) p = 100.0; 
+    // Tidak pakai faktor pengali di sini — biarkan power sweep di ScanFast
+    // yang verifikasi via simulasi engine mana power yang benar-benar masuk.
+    // Nilai ini hanya jadi BASE untuk sweep, bukan nilai final.
+    double p = sqrt(totalDist * 2.0 * 196.0);
+    if (p < 100.0) p = 100.0;
     if (p > 666.0) p = 666.0;
     return p;
 }
@@ -339,9 +336,8 @@ namespace AutoPlay {
             currentScanAngle += angleStep;
             steps++;
 
-            // Power sweep dengan step lebih rapat supaya bank shot
-            // yang butuh power spesifik tidak terlewat
-            std::vector<double> powers = {666.0, 550.0, 440.0, 330.0, 220.0, 120.0};
+            // Power sweep rapat supaya bank shot yang butuh power spesifik tidak terlewat
+            std::vector<double> powers = {666.0, 566.0, 466.0, 366.0, 266.0, 166.0, 100.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, lockedShotSpin);
                 
@@ -459,8 +455,6 @@ namespace AutoPlay {
             LOGI("AutoPlaySlow: Finished scan, nothing found.");
             isScanning = false;
             currentScanAngle = 0.0;
-            // Reset lastFailedCuePos supaya ScanFast bisa coba lagi di giliran berikutnya
-            // Tanpa ini ScanFast selalu skip karena posisi cue ball sama → macet
             lastFailedCuePos = { -1000.0, -1000.0 };
             state = IDLE;
         }
@@ -548,9 +542,11 @@ namespace AutoPlay {
         // VALIDASI DENGAN POWER SWEEP + ANGLE REFINEMENT
         // ================================================================
         static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
-        // Power sweep diperlebar ke atas (1.5x, 1.6x) untuk bank shot
-        // yang butuh power ekstra karena energy loss di cushion
-        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.6, 0.55};
+        // Power sweep: dari base naik dan turun dengan step kecil.
+        // Simulasi engine yang konfirmasi mana yang benar-benar masuk.
+        // Faktor naik sampai 1.8x untuk cover bank shot (energy loss cushion ~25%).
+        // Faktor turun sampai 0.5x untuk direct shot dekat.
+        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.6, 0.55, 1.8, 0.4};
         
         bool foundShot = false;
         for (const auto& cand : candidates) {
@@ -740,19 +736,11 @@ namespace AutoPlay {
 
     bool isAnimationActive() {
         auto visualCue = sharedGameManager.mVisualCue();
-        if (!visualCue) return true;
-        
+        if (!visualCue) return false;
         auto _powerBarView = F(ptr, visualCue + 0x510);
-        if (!_powerBarView) return true;
-
-        auto activeAction = M(ptr, libmain + 0x2de6f30, ptr)(_powerBarView); // CCAction getActiveAction
-        if (activeAction) {
-            // auto tag = F(uint, activeAction + 0x18); // 668 hiding 667 showing
-            // LOGI("tag %u %d %p", tag, tag, tag);
-            return true;
-        }
-
-        return false;
+        if (!_powerBarView) return false;
+        auto activeAction = M(ptr, libmain + 0x2de6f30, ptr)(_powerBarView);
+        return (activeAction != 0);
     }
     
     void Update() {
@@ -764,7 +752,6 @@ namespace AutoPlay {
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             if (humanState != HUM_IDLE) return;
             if (state == EXECUTING) return;
-            // Reset semua state saat giliran berakhir
             g_CurrentCandidate.idx = -1;
             lastFailedCuePos = { -1000.0, -1000.0 };
             spinIsLocked = false;
@@ -1018,23 +1005,25 @@ namespace AutoPlay {
     // - Saat humanState HUM_IDLE (setelah shot selesai): panggil isAuto=false → lines tampil
     if (humanState != HUM_IDLE) {
         // Lines hilang selama human state machine jalan.
-        // Pakai lockedShotSpin supaya simulasi konsisten dengan yang dipilih saat scan.
         gPrediction->determineShotResult(true, targetAngle, targetPower, lockedShotSpin);
     } else if (isPlayerTurn && g_CurrentCandidate.idx == -1) {
-        // Setelah shot selesai: unlock spin supaya scan berikutnya bisa lock fresh.
         spinIsLocked = false;
-        // Lines tampil lagi, ikuti aim angle real-time.
         if (gPrediction && sharedGameManager) {
             double curAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-            // FIX POWER: mPower() return skala game (0.0–1.0), sedangkan
-            // determineShotResult expect skala simulasi (0–666 = langsung velocity).
-            // getShotPower() sudah return skala simulasi yang benar.
-            // mPower() mentah menyebabkan display lines pakai power jauh lebih kecil
-            // dari yang dipakai saat scan → trajectory berbeda → lines meleset.
             double curPower = sharedGameManager.mVisualCue().getShotPower();
-            if (curPower < 10.0) curPower = 400.0; // fallback kalau belum ada power
+            if (curPower < 10.0) curPower = 400.0;
             gPrediction->determineShotResult(false, curAngle, curPower, lockedShotSpin);
         }
+    } else if (isPlayerTurn && g_CurrentCandidate.idx != -1) {
+        // FIX PREDICTION LINES: Tampilkan simulasi dengan angle+power YANG SAMA
+        // dengan yang akan ditembak (confirmedAngle/confirmedPower dari scan).
+        // Sebelumnya display pakai getShotPower() dari visual cue yang bisa beda
+        // dengan confirmedPower dari scan → lines keliatan masuk tapi shot nyatanya miss.
+        gPrediction->determineShotResult(false,
+            g_CurrentCandidate.angle,
+            g_CurrentCandidate.power,
+            lockedShotSpin,
+            g_CurrentCandidate);
     }
     }
 };
