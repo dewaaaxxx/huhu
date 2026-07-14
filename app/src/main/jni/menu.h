@@ -693,93 +693,155 @@ static void DrawContentArea(float winW, float winH) {
             // ═══════════════════════════════════════════════════
             // SECTION: Auto Play Mode
             // ═══════════════════════════════════════════════════
-            SectionHeader("Auto Play Mode");
+            SectionHeader("Auto Play");
         
-            // ── TABS: Human | Fast ──
-            PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-            
-            // Warna tab
-            ImVec4 tabBg = ImVec4(0.12f, 0.12f, 0.16f, 1.0f);
-            ImVec4 tabActiveBg = ImGui::ColorConvertU32ToFloat4(T1.accent);
-            ImVec4 tabActiveBgHov = ImVec4(tabActiveBg.x * 1.1f, tabActiveBg.y * 1.1f, tabActiveBg.z * 1.1f, 1.0f);
-            ImVec4 tabText = ImVec4(0.8f, 0.8f, 0.85f, 1.0f);
-            ImVec4 tabTextActive = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-            
-            float tabWidth = (GetContentRegionAvail().x - 10.0f) * 0.5f;
-            
-            // Render tab Human
-            PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
-            PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 0) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
-            PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
-            PushStyleColor(ImGuiCol_Text, (g_autoPlayMode == 0) ? tabTextActive : tabText);
-            
-            if (Button("Human", ImVec2(tabWidth, 40.0f))) {
-                g_autoPlayMode = 0;
+            // ── TOGGLE ON/OFF (UTAMA) ──
+            bool autoPlayChanged = false;
+            autoPlayChanged |= ToggleSwitch("Enable AutoPlay", &g_autoPlayEnabled);
+            if (autoPlayChanged) {
+                persistent_bool["bAutoPlayEnabled"] = g_autoPlayEnabled;
                 if (g_autoPlayEnabled) {
-                    AutoPlayFast::ClearState();
-                    AutoPlay::ClearState();
+                    if (g_autoPlayMode == 0) AutoPlay::ClearState();
+                    else AutoPlayFast::ClearState();
                 }
-                persistent_int["iAutoPlayMode"] = 0;
             }
-            PopStyleColor(4);
             
-            SameLine(0, 10.0f);
-            
-            // Render tab Fast
-            PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
-            PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 1) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
-            PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
-            PushStyleColor(ImGuiCol_Text, (g_autoPlayMode == 1) ? tabTextActive : tabText);
-            
-            if (Button("Fast", ImVec2(tabWidth, 40.0f))) {
-                g_autoPlayMode = 1;
-                if (g_autoPlayEnabled) {
-                    AutoPlayFast::ClearState();
-                    AutoPlay::ClearState();
+            // ── TAMPILKAN HANYA JIKA AUTOPLAY AKTIF ──
+            if (g_autoPlayEnabled) {
+                Dummy(ImVec2(0, 10));
+        
+                // ── TABS: Human | Fast ──
+                PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+                
+                // Warna tab
+                ImVec4 tabBg = ImVec4(0.12f, 0.12f, 0.16f, 1.0f);
+                ImVec4 tabActiveBg = ImGui::ColorConvertU32ToFloat4(T1.accent);
+                ImVec4 tabActiveBgHov = ImVec4(tabActiveBg.x * 1.1f, tabActiveBg.y * 1.1f, tabActiveBg.z * 1.1f, 1.0f);
+                ImVec4 tabText = ImVec4(0.8f, 0.8f, 0.85f, 1.0f);
+                ImVec4 tabTextActive = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+                
+                float tabWidth = (GetContentRegionAvail().x - 10.0f) * 0.5f;
+                
+                // Render tab Human
+                PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
+                PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 0) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
+                PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
+                PushStyleColor(ImGuiCol_Text, (g_autoPlayMode == 0) ? tabTextActive : tabText);
+                
+                if (Button("Human", ImVec2(tabWidth, 40.0f))) {
+                    g_autoPlayMode = 0;
+                    if (g_autoPlayEnabled) {
+                        AutoPlayFast::ClearState();
+                        AutoPlay::ClearState();
+                    }
+                    persistent_int["iAutoPlayMode"] = 0;
                 }
-                persistent_int["iAutoPlayMode"] = 1;
+                PopStyleColor(4);
+                
+                SameLine(0, 10.0f);
+                
+                // Render tab Fast
+                PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
+                PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 1) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
+                PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
+                PushStyleColor(ImGuiCol_Text, (g_autoPlayMode == 1) ? tabTextActive : tabText);
+                
+                if (Button("Fast", ImVec2(tabWidth, 40.0f))) {
+                    g_autoPlayMode = 1;
+                    if (g_autoPlayEnabled) {
+                        AutoPlayFast::ClearState();
+                        AutoPlay::ClearState();
+                    }
+                    persistent_int["iAutoPlayMode"] = 1;
+                }
+                PopStyleColor(4);
+                
+                PopStyleVar(1);
+                
+                // ── INFO MODE ──
+                Dummy(ImVec2(0, 8));
+                const char* modeDesc = (g_autoPlayMode == 0) 
+                    ? "Human-like aiming & pulling (slower, realistic)" 
+                    : "Fast scanning & instant shooting";
+                ImVec4 descCol = (g_autoPlayMode == 0) 
+                    ? ImVec4(0.4f, 0.8f, 0.9f, 1.0f) 
+                    : ImVec4(0.9f, 0.8f, 0.3f, 1.0f);
+                TextColored(descCol, "%s", modeDesc);
+                
+                Dummy(ImVec2(0, 12));
+                
+                // ── STATUS ──
+                SectionHeader("Status");
+                
+                // Mode status
+                const char* modeStr = (g_autoPlayMode == 0) ? "Human" : "Fast";
+                ImU32 modeCol = (g_autoPlayMode == 0) 
+                    ? IM_COL32(60, 180, 220, 255) 
+                    : IM_COL32(220, 180, 60, 255);
+                
+                ImVec2 pMode = GetCursorScreenPos();
+                dl1->AddText(pMode, T1.textSecondary, "Mode:");
+                dl1->AddText(ImVec2(pMode.x + 90.0f, pMode.y), modeCol, modeStr);
+                Dummy(ImVec2(0, 28.0f));
+        
+                // ── STATUS DARI AUTOPLAY (STATE) ──
+                // Tampilkan state dari AutoPlay yang sedang berjalan
+                const char* stateStr = "Idle";
+                if (g_autoPlayMode == 0) {
+                    // Dari AutoPlay (Human)
+                    switch (AutoPlay::state) {
+                        case AutoPlay::SCANNING:   stateStr = "Scanning"; break;
+                        case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
+                        case AutoPlay::EXECUTING:  stateStr = "Executing"; break;
+                        default:                   stateStr = "Idle"; break;
+                    }
+                } else {
+                    // Dari AutoPlayFast
+                    switch (AutoPlayFast::state) {
+                        case AutoPlayFast::SCANNING:   stateStr = "Scanning"; break;
+                        case AutoPlayFast::NOMINATING: stateStr = "Nominating"; break;
+                        case AutoPlayFast::EXECUTING:  stateStr = "Executing"; break;
+                        default:                       stateStr = "Idle"; break;
+                    }
+                }
+                
+                ImU32 stateCol = (strcmp(stateStr, "Idle") != 0) 
+                    ? IM_COL32(0, 200, 255, 255) 
+                    : IM_COL32(130, 130, 145, 255);
+                
+                ImVec2 pState = GetCursorScreenPos();
+                dl1->AddText(pState, T1.textSecondary, "State:");
+                dl1->AddText(ImVec2(pState.x + 90.0f, pState.y), stateCol, stateStr);
+                Dummy(ImVec2(0, 28.0f));
+                
+                // ── HUMAN STATE (khusus mode Human) ──
+                if (g_autoPlayMode == 0) {
+                    const char* humanStr = "Idle";
+                    switch (AutoPlay::humanState) {
+                        case AutoPlay::HUM_IDLE:            humanStr = "Idle"; break;
+                        case AutoPlay::HUM_THINKING:        humanStr = "Thinking"; break;
+                        case AutoPlay::HUM_OVERSHOOTING:    humanStr = "Overshoot"; break;
+                        case AutoPlay::HUM_CORRECTING:      humanStr = "Correcting"; break;
+                        case AutoPlay::HUM_HOLDING:         humanStr = "Holding"; break;
+                        case AutoPlay::HUM_STABILIZING:     humanStr = "Stabilizing"; break;
+                        case AutoPlay::HUM_PULLING:         humanStr = "Pulling"; break;
+                        case AutoPlay::HUM_DELAY_BEFORE_SHOT: humanStr = "Delay"; break;
+                        default:                            humanStr = "Idle"; break;
+                    }
+                    
+                    ImU32 humanCol = (strcmp(humanStr, "Idle") != 0) 
+                        ? IM_COL32(255, 200, 0, 255) 
+                        : IM_COL32(130, 130, 145, 255);
+                    
+                    ImVec2 pHuman = GetCursorScreenPos();
+                    dl1->AddText(pHuman, T1.textSecondary, "Human:");
+                    dl1->AddText(ImVec2(pHuman.x + 90.0f, pHuman.y), humanCol, humanStr);
+                    Dummy(ImVec2(0, 28.0f));
+                }
             }
-            PopStyleColor(4);
-            
-            PopStyleVar(1); // Hanya 1 style var (FrameRounding)
-            
-            // ── INFO MODE ──
-            Dummy(ImVec2(0, 8));
-            const char* modeDesc = (g_autoPlayMode == 0) 
-                ? "✓ Human-like aiming & pulling (slower, realistic)" 
-                : "✓ Fast scanning & instant shooting";
-            ImVec4 descCol = (g_autoPlayMode == 0) 
-                ? ImVec4(0.4f, 0.8f, 0.9f, 1.0f) 
-                : ImVec4(0.9f, 0.8f, 0.3f, 1.0f);
-            TextColored(descCol, "%s", modeDesc);
-            
-            Dummy(ImVec2(0, 12));
-            
-            // ── STATUS ──
-            SectionHeader("Status");
-            
-            // Status AutoPlay
-            const char* statusStr = g_autoPlayEnabled ? "Active" : "Inactive";
-            ImU32 statusCol = g_autoPlayEnabled ? IM_COL32(0, 220, 120, 255) : IM_COL32(200, 60, 60, 255);
-            
-            ImVec2 pStat = GetCursorScreenPos();
-            dl1->AddText(pStat, T1.textSecondary, "AutoPlay:");
-            dl1->AddText(ImVec2(pStat.x + 90.0f, pStat.y), statusCol, statusStr);
-            Dummy(ImVec2(0, 28.0f));
-            
-            // Mode status
-            const char* modeStr = (g_autoPlayMode == 0) ? "Human" : "Fast";
-            ImU32 modeCol = (g_autoPlayMode == 0) 
-                ? IM_COL32(60, 180, 220, 255) 
-                : IM_COL32(220, 180, 60, 255);
-            
-            ImVec2 pMode = GetCursorScreenPos();
-            dl1->AddText(pMode, T1.textSecondary, "Mode:");
-            dl1->AddText(ImVec2(pMode.x + 90.0f, pMode.y), modeCol, modeStr);
-            Dummy(ImVec2(0, 28.0f));
         
             // ═══════════════════════════════════════════════════
-            // SECTION: Draw (ESP)
+            // SECTION: Draw (ESP) - SELALU TAMPIL
             // ═══════════════════════════════════════════════════
             Dummy(ImVec2(0, 8));
             SectionHeader("Draw");
@@ -1213,7 +1275,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
 // ── DRAW TOGGLE BUTTON (FLOATING) ──
 static void DrawToggleButton() {
-    // Jangan tampilkan jika menu terbuka dan tidak diminimize
+    // Jangan tampilkan jika menu terbuka
     if (g_menu.isOpen && !g_menu.isMinimized) return;
 
     ImGuiIO& io = GetIO();
@@ -1225,15 +1287,13 @@ static void DrawToggleButton() {
 
     float fixedX = io.DisplaySize.x - rightMargin - windowWidth;
 
-    // PASTIKAN posisi Y tidak 0
     if (g_sideBtnsY <= 0.0f) {
-        g_sideBtnsY = io.DisplaySize.y - 150.0f; // Default posisi
+        g_sideBtnsY = io.DisplaySize.y - 150.0f;
     }
 
     SetNextWindowSize(ImVec2(windowWidth, windowHeight), ImGuiCond_Always);
     SetNextWindowPos(ImVec2(fixedX, g_sideBtnsY), ImGuiCond_Always);
 
-    // Hapus background biar transparan
     PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
     PushStyleColor(ImGuiCol_Border,   IM_COL32(0, 0, 0, 0));
     PushStyleVar(ImGuiStyleVar_WindowRounding, 99.0f);
@@ -1249,15 +1309,22 @@ static void DrawToggleButton() {
         ImVec2 center(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
 
         // ── BUTTON INTERAKSI ──
-        // Pake InvisibleButton biar bisa detect klik, tapi kita gambar sendiri visualnya
         PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
         PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 255, 255, 30));
         PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(255, 255, 255, 60));
         
+        // Tombol selalu aktif, tapi hanya toggle jika g_autoPlayEnabled true
         if (Button("##TglBtnHit", size)) {
-            g_autoPlayEnabled = !g_autoPlayEnabled;
-            persistent_bool["bAutoPlayEnabled"] = g_autoPlayEnabled;
             if (g_autoPlayEnabled) {
+                // Jika aktif, matikan
+                g_autoPlayEnabled = false;
+                persistent_bool["bAutoPlayEnabled"] = false;
+                LOGI("[AUTOPLAY] Disabled via floating button");
+            } else {
+                // Jika mati, hidupkan
+                g_autoPlayEnabled = true;
+                persistent_bool["bAutoPlayEnabled"] = true;
+                LOGI("[AUTOPLAY] Enabled via floating button");
                 if (g_autoPlayMode == 0) {
                     AutoPlay::ClearState();
                 } else {
@@ -1268,11 +1335,9 @@ static void DrawToggleButton() {
         PopStyleColor(3);
         
         bool hov = IsItemHovered();
-
+        bool active = g_autoPlayEnabled;
         float r = size.x * 0.5f;
         ImDrawList* dl = GetWindowDrawList();
-
-        bool active = g_autoPlayEnabled;
 
         // ── DRAW ICON ──
         // Glow effect
