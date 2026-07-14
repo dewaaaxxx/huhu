@@ -14,29 +14,11 @@
 #include "game/GameManager.h"
 
 static Vec4d table_bounds;
-static thread_local bool fastCalc = true;
-
-// ── Scene Snapshot: bola di-capture sekali, dipakai ulang semua simulasi scan ──
-struct SceneSnapshot {
-    int ballsCount = 0;
-    struct BallData {
-        int index;
-        ::Ball::Classification classification;
-        ::Ball::State state;
-        bool originalOnTable;
-        Point2D position;
-    } balls[MAX_BALLS_COUNT];
-    Vec4d tableBounds;
-    // FIX-4: Capture real pocket positions from game memory instead of hardcoded values.
-    // Different table types (VIP, Premium) have different pocket positions.
-    Point2D pockets[TABLE_POCKETS_COUNT];
-    bool hasPockets = false;
-    bool valid = false;
-};
-static SceneSnapshot g_sceneSnapshot;
-static thread_local bool g_useSnapshot = false;
+static bool fastCalc = true;
 
 struct Prediction {
+    static bool pocketStatus[TABLE_POCKETS_COUNT];
+
     Prediction() = default;
     ~Prediction() = default;
 
@@ -103,9 +85,8 @@ struct Prediction {
 
         Collision collision;
         bool shotState;
-        bool pocketStatus[TABLE_POCKETS_COUNT];
 
-        SceneData() : ballsCount(0), balls{}, collision{}, shotState(false), pocketStatus{} {}
+        SceneData() : ballsCount(0), balls{}, collision{}, shotState(false) {}
         ~SceneData() = default;
     } guiData;
 
@@ -129,12 +110,12 @@ extern Prediction *gPrediction;
 static Prediction prediction;
 Prediction *gPrediction = &prediction;
 
+bool Prediction::pocketStatus[] = {};
 float Prediction::shotResult[MAX_SHOT_RESULT_SIZE];
 
-static thread_local double prevAngle = 0.0;
-static thread_local double prevPower = 0.0;
-static thread_local Point2D prevSpin = {0.0, 0.0};
-static thread_local bool prevIsAuto = false;
+static double prevAngle = 0.0;
+static double prevPower = 0.0;
+static Point2D prevSpin = {0.0, 0.0};
 
 // constexpr double dword_35B7988 = 0.54;
 // constexpr double dword_35B7978 = 0.804;
@@ -142,17 +123,8 @@ static thread_local bool prevIsAuto = false;
 /* PREDICTION PUBLIC METHODS ==================================================================== */
 
 bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotPower, Vec2d shotSpin, Candidate cand) { // returns isShouldReDraw
-        // FIX-3: Always re-run for actual shot (isAuto=false) — never use stale cache.
-        // Only skip re-computation when scanning (isAuto=true) with identical params.
-        if (isAuto &&
-            shotAngle == prevAngle && shotPower == prevPower &&
-            shotSpin == prevSpin && isAuto == prevIsAuto)
-            return false;
-
-    prevAngle = shotAngle;
-    prevPower = shotPower;
-    prevSpin  = shotSpin;
-    prevIsAuto = isAuto;   // ← salvează și asta
+    if (shotAngle == prevAngle && shotPower == prevPower && shotSpin == prevSpin) return false;
+    prevAngle = shotAngle, prevPower = shotPower, prevSpin = shotSpin;
 
     this->m_candidate = cand;
     fastCalc = isAuto;
@@ -161,17 +133,15 @@ bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotP
     this->initCueBall(shotAngle, shotPower, shotSpin);
     this->guiData.collision.firstHitBall = nullptr;
     
-    for (bool &_pocketStatus : this->guiData.pocketStatus) _pocketStatus = false;
+    for (bool &_pocketStatus : pocketStatus) _pocketStatus = false;
 
     this->determineBallsPositions();
     // if (dynamic_bool["isDrawShotStateEnabled", false]) this->determineShotState();
 
-    if (!fastCalc) {
-        for (int i = 0; i < this->guiData.ballsCount; i++) {
-            Ball &ball = this->guiData.balls[i];
-            if (!ball.positions.empty() && ball.positions.back() != ball.predictedPosition) {
-                ball.positions.push_back(ball.predictedPosition);
-            }
+    for (int i = 0; i < this->guiData.ballsCount; i++) {
+        Ball &ball = this->guiData.balls[i];
+        if (ball.positions.back() != ball.predictedPosition) {
+            ball.positions.push_back(ball.predictedPosition);
         }
     }
 
@@ -183,28 +153,6 @@ bool Prediction::determineShotResult(bool isAuto, double shotAngle, double shotP
 /* PREDICTION PRIVATE METHODS =================================================================== */
 
 void Prediction::initBalls() {
-    // ── FAST PATH: gunakan snapshot (tidak perlu baca game memory sama sekali) ──
-    if (g_useSnapshot && g_sceneSnapshot.valid) {
-        table_bounds = g_sceneSnapshot.tableBounds;
-        this->guiData.ballsCount = g_sceneSnapshot.ballsCount;
-        for (int i = 0; i < this->guiData.ballsCount; i++) {
-            Ball &ball = this->guiData.balls[i];
-            const auto &src = g_sceneSnapshot.balls[i];
-            ball.index       = src.index;
-            ball.state       = src.state;
-            ball.originalOnTable = src.originalOnTable;
-            ball.onTable     = src.originalOnTable;
-            ball.classification = src.classification;
-            ball.initialPosition  = src.position;
-            ball.predictedPosition = src.position;
-            ball.velocity.nullify();
-            ball.spin.nullify();
-            ball.positions.clear();
-        }
-        return;
-    }
-
-    // ── NORMAL PATH: baca dari game memory (dipakai saat render GUI) ──
     Table table = sharedGameManager.mTable;
     if (!table) return;
     
@@ -213,6 +161,7 @@ void Prediction::initBalls() {
 
     table_bounds = table.mTableCollisionBounds();
 
+    // MemoryManager::Balls::initializeBallsList();
     this->guiData.ballsCount = balls.Count;
     for (int i = 0; i < this->guiData.ballsCount; i++) {
         Ball &ball = this->guiData.balls[i];
@@ -225,13 +174,9 @@ void Prediction::initBalls() {
         ball.predictedPosition = ball.initialPosition;
         ball.velocity.nullify();
         ball.spin.nullify();
-        if (fastCalc) {
-            ball.positions.clear();
-        } else {
-            if (!ball.positions.empty()) ball.positions.clear();
-            ball.positions.reserve(20);
-            ball.positions.push_back(ball.initialPosition);
-        }
+        if (!ball.positions.empty()) ball.positions.clear();
+        ball.positions.reserve(20);
+        ball.positions.push_back(ball.initialPosition);
     }
 }
 
@@ -402,10 +347,8 @@ void Prediction::handleBallBallCollision() const {
 
 /* BALL PUBLIC METHODS ========================================================================== */
 
-// FIX-4: Use real pocket positions from snapshot when available.
-// Snapshot is populated by AutoPlay::TakeSnapshot() with mPockets() from game memory.
 const std::array<Point2D, TABLE_POCKETS_COUNT>& getPockets() {
-    static std::array<Point2D, TABLE_POCKETS_COUNT> POCKET_POSITIONS = {
+    static const std::array<Point2D, TABLE_POCKETS_COUNT> POCKET_POSITIONS = {
             Point2D(-130.8, -67.3),
             Point2D(0, -72),
             Point2D(130.8, -67.3),
@@ -413,10 +356,6 @@ const std::array<Point2D, TABLE_POCKETS_COUNT>& getPockets() {
             Point2D(0, 72),
             Point2D(-130.8, 67.3)
     };
-    if (g_useSnapshot && g_sceneSnapshot.hasPockets) {
-        for (int i = 0; i < TABLE_POCKETS_COUNT; i++)
-            POCKET_POSITIONS[i] = g_sceneSnapshot.pockets[i];
-    }
     return POCKET_POSITIONS;
 }
 
@@ -507,7 +446,7 @@ void Prediction::Ball::findNextCollision(void *pData, double *time) {
                     if (deltaSquare < BALL_RADIUS_SQUARE) {
                         this->state = ::Ball::State::IN_POCKET;
                         this->pocketIndex = i;
-                        data->pocketStatus[i] = true;
+                        Prediction::pocketStatus[i] = true;
                     }
                 }
             }
