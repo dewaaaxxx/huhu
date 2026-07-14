@@ -562,7 +562,12 @@ INLINE void DrawESP(ImDrawList* draw) {
                                 ImVec2 p1(start.x + nx * dashStart, start.y + ny * dashStart);
                                 ImVec2 p2(start.x + nx * dashEnd, start.y + ny * dashEnd);
                                 
-                                ImU32 color = isWhite ? IM_COL32(255, 255, 255, 255) : colors[i];
+                                ImU32 color;
+                                if (isWhite) {
+                                    color = IM_COL32(255, 255, 255, 255);
+                                } else {
+                                    color = ballColor; // colors[i] udah di-convert ke ImU32
+                                }
                                 
                                 // Stripes: outline putih + warna
                                 draw->AddLine(p1, p2, IM_COL32(255, 255, 255, 200), lineThick + 2.0f);
