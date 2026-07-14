@@ -29,7 +29,6 @@ namespace AutoPlayFast {
 }
 
 static int g_autoPlayMode = 0; // 0 = Human, 1 = Fast
-static bool g_autoPlayEnabled = false;
 
 struct MenuState {
     bool isOpen      = false;
