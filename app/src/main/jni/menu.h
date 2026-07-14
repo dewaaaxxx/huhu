@@ -527,37 +527,83 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-                if (ball.initialPosition != ball.predictedPosition) {
-                    ImVec2 lastPos{};
-                    for (int j = 1; j < ball.positions.size(); j++) {
-                        auto point = WorldToScreen(ball.positions[j]);
-                        if (lastPos.x || lastPos.y) {
-                            if (lineStyle == 1) {
-                                // DOTTED
-                                float dx = point.x - lastPos.x, dy = point.y - lastPos.y;
-                                float len = sqrtf(dx*dx + dy*dy);
-                                int steps = (int)(len / 14.0f);
-                                if (steps < 1) steps = 1;
-                                for (int s = 0; s <= steps; s++) {
-                                    float k = (float)s / (float)steps;
-                                    ImVec2 p(lastPos.x + dx*k, lastPos.y + dy*k);
-                                    draw->AddCircleFilled(p, 3.5f, colors[i]);
-                                    draw->AddCircleFilled(p, 1.8f, IM_COL32(255,255,255,255));
-                                }
-                            } else {
-                                // SOLID
-                                draw->AddLine(lastPos, point, colors[i], lineThick);
+                if (i == 0) continue;
+                
+                // CEK JENIS BOLA
+                bool isStripes = (i >= 9 && i <= 15);
+                bool isSolid = (i >= 1 && i <= 7);
+                
+                if (ball.initialPosition != ball.predictedPosition && ball.positions.size() > 1) {
+                    
+                    // ── STRIPES (9-15): STRIPED / DASHED ──
+                    if (isStripes && lineStyle == 1) {
+                        float dashLength = 20.0f;
+                        float gapLength = 12.0f;
+                        float segmentLength = dashLength + gapLength;
+                        
+                        for (int j = 1; j < ball.positions.size(); j++) {
+                            ImVec2 start = WorldToScreen(ball.positions[j-1]);
+                            ImVec2 end = WorldToScreen(ball.positions[j]);
+                            
+                            float dx = end.x - start.x, dy = end.y - start.y;
+                            float len = sqrtf(dx*dx + dy*dy);
+                            
+                            if (len < 1.0f) continue;
+                            
+                            float nx = dx / len, ny = dy / len;
+                            
+                            float drawn = 0.0f;
+                            bool isWhite = false;
+                            
+                            while (drawn < len) {
+                                float dashStart = drawn;
+                                float dashEnd = std::min(drawn + dashLength, len);
+                                
+                                ImVec2 p1(start.x + nx * dashStart, start.y + ny * dashStart);
+                                ImVec2 p2(start.x + nx * dashEnd, start.y + ny * dashEnd);
+                                
+                                ImU32 color = isWhite ? IM_COL32(255, 255, 255, 255) : colors[i];
+                                
+                                // Stripes: outline putih + warna
+                                draw->AddLine(p1, p2, IM_COL32(255, 255, 255, 200), lineThick + 2.0f);
+                                draw->AddLine(p1, p2, color, lineThick);
+                                
+                                drawn += segmentLength;
+                                isWhite = !isWhite;
                             }
                         }
-                        lastPos = point;
+                    }
+                    // ── SOLID (1-7) ATAU STRIPES TAPI LINE_STYLE SOLID ──
+                    else {
+                        ImVec2 lastPos = WorldToScreen(ball.positions[0]);
+                        for (int j = 1; j < ball.positions.size(); j++) {
+                            ImVec2 point = WorldToScreen(ball.positions[j]);
+                            
+                            if (isStripes) {
+                                // STRIPES pake striped juga kalo lineStyle 0 (SOLID)
+                                // Tapi biar beda, kita kasih outline putih tipis
+                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 150), lineThick + 2.0f);
+                                draw->AddLine(lastPos, point, colors[i], lineThick);
+                            } else {
+                                // SOLID: warna doang
+                                draw->AddLine(lastPos, point, colors[i], lineThick);
+                            }
+                            
+                            lastPos = point;
+                        }
                     }
                 }
             }
+            
+            // ── BOLA DI UJUNG ──
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
+                if (i == 0) continue;
+                
                 if (ball.initialPosition != ball.predictedPosition) {
-                    draw->AddCircle(WorldToScreen(ball.initialPosition), 20, colors[i], 0, 6.f);
-                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20, colors[i]);
+                    ImVec2 screenPos = WorldToScreen(ball.predictedPosition);
+                    draw->AddCircle(screenPos, 20, colors[i], 0, 6.f);
+                    draw->AddCircleFilled(screenPos, 20, colors[i]);
                 }
             }
         }
