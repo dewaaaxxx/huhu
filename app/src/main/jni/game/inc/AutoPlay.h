@@ -239,6 +239,28 @@ namespace AutoPlay {
     }
 
     bool shouldAutoPlay() { return !didSetAngle || lastSetAngle == sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(); }
+    
+    bool AreBallsMoving() {
+        if (!sharedGameManager) return false;
+        Table table = sharedGameManager.mTable;
+        if (!table) return false;
+        auto& balls = table.mBalls();
+        if (!balls) return false;
+        for (int i = 0; i < balls.Count; i++) {
+            Ball ball = balls[i];
+            if (ball && ball.isOnTable()) {
+                auto vel = ball.velocity();
+                if (vel.x * vel.x + vel.y * vel.y > 0.000001) {
+                    return true;
+                }
+                auto spin = ball.spin();
+                if (spin.x * spin.x + spin.y * spin.y + spin.z * spin.z > 0.000001) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     void setAimAngle(double angle) {
         if (!sharedGameManager) return;
@@ -276,6 +298,7 @@ namespace AutoPlay {
         state = IDLE;
         humanState = HUM_IDLE;
         spinIsLocked = false; // Unlock spin supaya scan berikutnya lock spin fresh
+        g_autoPlayCalculating = true;
     }
     
     void Shoot(double angle, double power = 0.f) {
@@ -311,7 +334,7 @@ namespace AutoPlay {
         static bool isScanning = false;
         static Point2D lastScanCuePos = { -1000.0, -1000.0 };
 
-        if (g_CurrentCandidate.idx != -1) return;
+        if (g_CurrentCandidate.idx != -1) { g_autoPlayCalculating = false; return; }
         
         // Reset if we just started or wrapped around, or if table changed
         if (!isScanning || gPrediction->guiData.balls[0].initialPosition != lastScanCuePos) {
@@ -459,6 +482,7 @@ namespace AutoPlay {
             isScanning = false;
             currentScanAngle = 0.0;
             lastFailedCuePos = { -1000.0, -1000.0 };
+            g_autoPlayCalculating = false;
             state = IDLE;
         }
     }
@@ -670,6 +694,7 @@ namespace AutoPlay {
 
         if (!foundShot) {
             lastFailedCuePos = cueBall.initialPosition;
+            g_autoPlayCalculating = true;
             LOGI("AutoPlay: No good angle found after smart scan.");
             scan = SLOW;
         }
@@ -749,8 +774,24 @@ namespace AutoPlay {
     void Update() {
         buttonClicker.Update();
   //      powerSlider.Update();
+  
+        if (AreBallsMoving()) {
+            return;  // ← TUNGGU BOLA BERHENTI
+        }
 
-        if (isAnimationActive()) return;
+        static double animStartTime = 0.0;
+            if (isAnimationActive()) {
+                if (animStartTime == 0.0) animStartTime = nowSec();
+                if (nowSec() - animStartTime > 2.0) {
+                    // Force reset kalo stuck > 2 detik
+                    animStartTime = 0.0;
+                    ClearState();
+                    state = IDLE;
+                    return;
+                }
+                return;
+            }
+            animStartTime = 0.0;
 
         if (!persistent_bool[O("bAutoPlay")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             if (humanState != HUM_IDLE) return;
@@ -761,6 +802,15 @@ namespace AutoPlay {
             state = IDLE;
             scan = FAST;
             NativeTouchesEnd(5, 0, 0);
+            return;
+        }
+        
+        if (AreBallsMoving() && !executingShot) {
+            if (state == SCANNING || state == NOMINATING) {
+                ClearState();
+                state = IDLE;
+            }
+            g_autoPlayCalculating = false;
             return;
         }
 
