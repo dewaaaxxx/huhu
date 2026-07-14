@@ -4,6 +4,8 @@
 #include <imgui/imgui.h>
 #include <algorithm>
 
+static bool g_autoPlayEnabled = false;
+
 #include "AutoPlay.h"
 
 //#include "mod/PowerSlider.h"
@@ -618,7 +620,7 @@ namespace AutoPlayFast {
 
         if (isAnimationActive()) return;
 
-        if (!persistent_bool[O("bAutoPlayFast")] || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
+        if (!g_autoPlayEnabled || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             // Kalau human state machine sedang jalan, jangan interrupt
            // if (humanState != HUM_IDLE) return;
             // Kalau sedang EXECUTING (nomination → shot), jangan reset
