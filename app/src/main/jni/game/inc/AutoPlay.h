@@ -150,6 +150,8 @@ namespace AutoPlay {
     double pendingShotPower = 0.f;
     double pendingShotAngle = 0.f;
     int nominationFrameCounter = 0;
+
+    enum SpinPreset { SPIN_TOP = 0, SPIN_BOTTOM, SPIN_LEFT, SPIN_RIGHT, SPIN_CENTER };
     
     static inline float powerMin = 100.0f;
     static inline float powerMax = 666.0f;
