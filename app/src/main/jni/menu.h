@@ -497,7 +497,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (!gameStateManager) return;
 
         if (persistent_bool[O("bAutoPlay")]) {
-            DrawToggleButton();
+           // DrawToggleButton();
             AutoPlay::Update();
         }
 
@@ -568,7 +568,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                                 if (isWhite) {
                                     color = IM_COL32(255, 255, 255, 255);
                                 } else {
-                                    color = ballColor; // colors[i] udah di-convert ke ImU32
+                                    color = colors[i]; // colors[i] udah di-convert ke ImU32
                                 }
                                 
                                 // Stripes: outline putih + warna
