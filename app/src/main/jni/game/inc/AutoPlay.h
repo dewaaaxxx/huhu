@@ -331,13 +331,13 @@ namespace AutoPlay {
         bool foundShot = false;
         
         // Scan 10 angles per frame
-        while (steps < 35 && currentScanAngle < maxAngle) {
+        while (steps < 40 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
 
             // Power sweep rapat supaya bank shot yang butuh power spesifik tidak terlewat
-            std::vector<double> powers = {666.0, 566.0, 466.0, 366.0, 266.0, 166.0, 100.0};
+            std::vector<double> powers = {666.0, 566.0, 466.0, 366.0, 266.0, 166.0, 100.0, 80.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, lockedShotSpin);
                 
@@ -546,7 +546,7 @@ namespace AutoPlay {
         // Simulasi engine yang konfirmasi mana yang benar-benar masuk.
         // Faktor naik sampai 1.8x untuk cover bank shot (energy loss cushion ~25%).
         // Faktor turun sampai 0.5x untuk direct shot dekat.
-        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.6, 0.55, 1.8, 0.4};
+        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.6, 0.55, 1.9, 0.4, 2.0};
         
         bool foundShot = false;
         for (const auto& cand : candidates) {
