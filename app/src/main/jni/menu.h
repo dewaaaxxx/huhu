@@ -199,43 +199,44 @@ static void DrawSectionTitle(const char* icon, const char* title, const char* su
     ImVec2 pos = GetCursorScreenPos();
     ImVec2 avail = GetContentRegionAvail();
     
-    // ── BORDER KIRI ──
+    float totalHeight = subtitle ? 52.0f : 36.0f;
+    
+    // ── BACKGROUND ──
+    dl->AddRectFilled(
+        ImVec2(pos.x, pos.y),
+        ImVec2(pos.x + avail.x, pos.y + totalHeight),
+        IM_COL32(26, 32, 48, 180),
+        8.0f
+    );
+    dl->AddRect(
+        ImVec2(pos.x, pos.y),
+        ImVec2(pos.x + avail.x, pos.y + totalHeight),
+        g_ThemeBorder, // <-- LANGSUNG PAKE ImU32
+        8.0f,
+        0,
+        1.0f
+    );
     dl->AddRectFilled(
         ImVec2(pos.x, pos.y + 4.0f),
-        ImVec2(pos.x + 3.0f, pos.y + 32.0f),
-        g_ThemeAccent,
+        ImVec2(pos.x + 3.0f, pos.y + totalHeight - 4.0f),
+        g_ThemeAccent, // <-- LANGSUNG PAKE ImU32
         2.0f
     );
     
+    // ── TEXT ──
+    SetCursorScreenPos(ImVec2(pos.x + 16.0f, pos.y + 8.0f));
     SetWindowFontScale(1.08f);
-    
-    // ── ICON ──
     TextColored(ToVec4(g_ThemeText), "%s", icon);
     SameLine(0, 4);
-    
-    // ── TITLE ──
     TextColored(ImVec4(0.92f, 0.92f, 0.90f, 1.0f), "%s", title);
-    
     SetWindowFontScale(1.0f);
     
-    // ── SUBTITLE ──
     if (subtitle) {
-        Dummy(ImVec2(0, 2));
-        PushTextWrapPos(GetCursorPosX() + avail.x);
+        SetCursorScreenPos(ImVec2(pos.x + 16.0f, pos.y + 30.0f));
         TextColored(ToVec4(g_ThemeBorder), "%s", subtitle);
-        PopTextWrapPos();
     }
     
-    // ── GARIS BAWAH ──
-    float y = GetCursorScreenPos().y + 6.0f;
-    dl->AddLine(
-        ImVec2(pos.x + 10.0f, y), 
-        ImVec2(pos.x + avail.x, y), 
-        ToVec4(g_ThemeBorder), 
-        1.0f
-    );
-    
-    Dummy(ImVec2(0, 13.0f));
+    Dummy(ImVec2(0, totalHeight + 8.0f));
 }
 
 
