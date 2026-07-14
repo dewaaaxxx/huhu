@@ -691,11 +691,11 @@ static void DrawContentArea(float winW, float winH) {
             };
         
             // ═══════════════════════════════════════════════════
-            // SECTION: Auto Play Mode
+            // SECTION: Auto Play
             // ═══════════════════════════════════════════════════
             SectionHeader("Auto Play");
         
-            // ── TOGGLE ON/OFF (UTAMA) ──
+            // ── TOGGLE ON/OFF ──
             bool autoPlayChanged = false;
             autoPlayChanged |= ToggleSwitch("Enable AutoPlay", &g_autoPlayEnabled);
             if (autoPlayChanged) {
@@ -713,7 +713,6 @@ static void DrawContentArea(float winW, float winH) {
                 // ── TABS: Human | Fast ──
                 PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
                 
-                // Warna tab
                 ImVec4 tabBg = ImVec4(0.12f, 0.12f, 0.16f, 1.0f);
                 ImVec4 tabActiveBg = ImGui::ColorConvertU32ToFloat4(T1.accent);
                 ImVec4 tabActiveBgHov = ImVec4(tabActiveBg.x * 1.1f, tabActiveBg.y * 1.1f, tabActiveBg.z * 1.1f, 1.0f);
@@ -722,7 +721,7 @@ static void DrawContentArea(float winW, float winH) {
                 
                 float tabWidth = (GetContentRegionAvail().x - 10.0f) * 0.5f;
                 
-                // Render tab Human
+                // ── TAB HUMAN ──
                 PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
                 PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 0) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
                 PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
@@ -740,7 +739,7 @@ static void DrawContentArea(float winW, float winH) {
                 
                 SameLine(0, 10.0f);
                 
-                // Render tab Fast
+                // ── TAB FAST ──
                 PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
                 PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 1) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
                 PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
@@ -767,77 +766,6 @@ static void DrawContentArea(float winW, float winH) {
                     ? ImVec4(0.4f, 0.8f, 0.9f, 1.0f) 
                     : ImVec4(0.9f, 0.8f, 0.3f, 1.0f);
                 TextColored(descCol, "%s", modeDesc);
-                
-                Dummy(ImVec2(0, 12));
-                
-                // ── STATUS ──
-                SectionHeader("Status");
-                
-                // Mode status
-                const char* modeStr = (g_autoPlayMode == 0) ? "Human" : "Fast";
-                ImU32 modeCol = (g_autoPlayMode == 0) 
-                    ? IM_COL32(60, 180, 220, 255) 
-                    : IM_COL32(220, 180, 60, 255);
-                
-                ImVec2 pMode = GetCursorScreenPos();
-                dl1->AddText(pMode, T1.textSecondary, "Mode:");
-                dl1->AddText(ImVec2(pMode.x + 90.0f, pMode.y), modeCol, modeStr);
-                Dummy(ImVec2(0, 28.0f));
-        
-                // ── STATUS DARI AUTOPLAY (STATE) ──
-                // Tampilkan state dari AutoPlay yang sedang berjalan
-                const char* stateStr = "Idle";
-                if (g_autoPlayMode == 0) {
-                    // Dari AutoPlay (Human)
-                    switch (AutoPlay::state) {
-                        case AutoPlay::SCANNING:   stateStr = "Scanning"; break;
-                        case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
-                        case AutoPlay::EXECUTING:  stateStr = "Executing"; break;
-                        default:                   stateStr = "Idle"; break;
-                    }
-                } else {
-                    // Dari AutoPlayFast
-                    switch (AutoPlayFast::state) {
-                        case AutoPlayFast::SCANNING:   stateStr = "Scanning"; break;
-                        case AutoPlayFast::NOMINATING: stateStr = "Nominating"; break;
-                        case AutoPlayFast::EXECUTING:  stateStr = "Executing"; break;
-                        default:                       stateStr = "Idle"; break;
-                    }
-                }
-                
-                ImU32 stateCol = (strcmp(stateStr, "Idle") != 0) 
-                    ? IM_COL32(0, 200, 255, 255) 
-                    : IM_COL32(130, 130, 145, 255);
-                
-                ImVec2 pState = GetCursorScreenPos();
-                dl1->AddText(pState, T1.textSecondary, "State:");
-                dl1->AddText(ImVec2(pState.x + 90.0f, pState.y), stateCol, stateStr);
-                Dummy(ImVec2(0, 28.0f));
-                
-                // ── HUMAN STATE (khusus mode Human) ──
-                if (g_autoPlayMode == 0) {
-                    const char* humanStr = "Idle";
-                    switch (AutoPlay::humanState) {
-                        case AutoPlay::HUM_IDLE:            humanStr = "Idle"; break;
-                        case AutoPlay::HUM_THINKING:        humanStr = "Thinking"; break;
-                        case AutoPlay::HUM_OVERSHOOTING:    humanStr = "Overshoot"; break;
-                        case AutoPlay::HUM_CORRECTING:      humanStr = "Correcting"; break;
-                        case AutoPlay::HUM_HOLDING:         humanStr = "Holding"; break;
-                        case AutoPlay::HUM_STABILIZING:     humanStr = "Stabilizing"; break;
-                        case AutoPlay::HUM_PULLING:         humanStr = "Pulling"; break;
-                        case AutoPlay::HUM_DELAY_BEFORE_SHOT: humanStr = "Delay"; break;
-                        default:                            humanStr = "Idle"; break;
-                    }
-                    
-                    ImU32 humanCol = (strcmp(humanStr, "Idle") != 0) 
-                        ? IM_COL32(255, 200, 0, 255) 
-                        : IM_COL32(130, 130, 145, 255);
-                    
-                    ImVec2 pHuman = GetCursorScreenPos();
-                    dl1->AddText(pHuman, T1.textSecondary, "Human:");
-                    dl1->AddText(ImVec2(pHuman.x + 90.0f, pHuman.y), humanCol, humanStr);
-                    Dummy(ImVec2(0, 28.0f));
-                }
             }
         
             // ═══════════════════════════════════════════════════
