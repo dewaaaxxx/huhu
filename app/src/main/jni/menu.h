@@ -18,6 +18,8 @@
 using namespace ImGui;
 using namespace std;
 
+ImFont* g_FontNomorBola = nullptr;
+
 struct MenuState {
     bool isOpen      = false;
     bool isMinimized = false;   // collapses to header-only bar
@@ -531,44 +533,57 @@ INLINE void DrawESP(ImDrawList* draw) {
         
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
+                    float lineThick = (float)persistent_int[O("iLineThickness")];
+                    if (lineThick < 1.f) lineThick = 1.f;
         
                     bool isStripe = (i >= 9 && i <= 15);
                     ImU32 mainColor = colors[i];
                     ImU32 whiteColor = IM_COL32(255, 255, 255, 220);
         
+                    float circleR = (float)persistent_int[O("iLineThickness")] + 1.f;
+                    if (circleR < 2.f) circleR = 2.f;
+                    draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
+        
                     // ── Garis prediksi ──
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
                         if (lastPos.x || lastPos.y) {
+                            draw->AddLine(lastPos, point, mainColor, lineThick);
                             if (isStripe) {
-                                draw->AddLine(lastPos, point, mainColor, lineThick);
-                                draw->AddLine(lastPos, point, whiteColor, lineThick * 0.4f);
-                            } else {
-                                draw->AddLine(lastPos, point, mainColor, lineThick);
+                                DrawDashedLine(draw, lastPos, point, whiteColor, lineThick * 0.5f, 8.0f, 8.0f);
                             }
                         }
                         lastPos = point;
                     }
         
-                    // ─── Ujung garis (endpoint) ────────────────────────────────────
-                    ImVec2 endPos = WorldToScreen(ball.positions.back());
+                    // ─── Circle kecil di posisi akhir bola ────────────────────────
+                    ImVec2 finalPos = WorldToScreen(ball.predictedPosition);
+                    draw->AddCircleFilled(finalPos, 6.0f, mainColor);
         
-                    if (isStripe) {
-                        draw->AddCircle(endPos, 16.0f, mainColor, 0, 2.0f); // outline
-                    } else {
-                        draw->AddCircleFilled(endPos, 16.0f, mainColor);      // filled
+                    // ─── Outline + nomor di ujung garis (skip cue ball) ──────────
+                    if (i != 0) {
+                        ImVec2 endPos = WorldToScreen(ball.positions.back());
+        
+                        if (isStripe) {
+                            draw->AddCircle(endPos, 16.0f, mainColor, 0, 2.0f);
+                        }
+        
+                        char buf[4];
+                        snprintf(buf, sizeof(buf), "%d", i);
+        
+                        // 🔥 Hitung posisi teks SEBELUM draw
+                        ImVec2 textSize = ImGui::CalcTextSize(buf);
+                        ImVec2 textPos = ImVec2(endPos.x - textSize.x * 0.5f, endPos.y - textSize.y * 0.5f);
+        
+                        draw->AddCircleFilled(endPos, 10.0f, IM_COL32(255, 255, 255, 255));
+                        if (g_FontNomorBola) {
+                            ImGui::PushFont(g_FontNomorBola);
+                            draw->AddText(textPos, IM_COL32(0, 0, 0, 255), buf);
+                            ImGui::PopFont();
+                        } else {
+                            draw->AddText(textPos, IM_COL32(0, 0, 0, 255), buf);
+                        }
                     }
-        
-                    // ─── Nomor bola di ujung (semua bola) ──────────────────────────
-                    char buf[4];
-                    snprintf(buf, sizeof(buf), "%d", i);
-                    ImVec2 textSize = ImGui::CalcTextSize(buf);
-                    ImVec2 textPos = ImVec2(endPos.x - textSize.x * 0.5f, endPos.y - textSize.y * 0.5f);
-        
-                    // Background putih solid
-                    draw->AddCircleFilled(endPos, 10.0f, IM_COL32(255, 255, 255, 255));
-                    // Nomor hitam
-                    draw->AddText(textPos, IM_COL32(0, 0, 0, 255), buf);
                 }
             }
         }
@@ -1625,6 +1640,14 @@ INLINE void SetupImgui() {
     PACKAGE_NAME = string(getcmdline());
 
     ImGui::CreateContext();
+    
+    // Di dalam inisialisasi ImGui (misal setelah ImGui::CreateContext())
+    // Di dalam main() atau inisialisasi ImGui
+    ImGuiIO& io = ImGui::GetIO();
+    g_FontNomorBola = io.Fonts->AddFontFromFileTTF("fonts/arial.ttf", 9.0f);
+    if (!g_FontNomorBola) {
+        LOGI("[WARNING] Gagal load font nomor bola, pakai default");
+    }
 
     auto& style = ImGui::GetStyle();
     auto& io = ImGui::GetIO();
