@@ -1,6 +1,5 @@
 #pragma once
 #include "include/includes.h"
-#include "mod/ButtonClicker.h"
 #include "game.h"
 #include "game/Ruleset.h"
 #include "imgui/inc/8bp.h"
@@ -11,6 +10,10 @@
 #include <GLES3/gl3.h>
 #include <sys/system_properties.h>
 #include <ctime>
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
+#include <cstdarg>
 #include <Vector/Vectors.h>
 #include <imgui/imgui.h>
 #include "icons/icons.h"
@@ -20,68 +23,81 @@ using namespace std;
 
 struct MenuState {
     bool isOpen      = false;
-    bool isMinimized = false;   // collapses to header-only bar
-    int currentTab = 0;
-    float sidebarWidth = 520.0f;
-    float animProgress = 0.0f;
-    float menuAlpha = 0.0f;
-    float menuScale = 0.9f;
-    ImVec4 accentColor = ImVec4(0.35f, 0.65f, 0.95f, 1.0f);
+    int  currentTab  = 0;
+    float sidebarWidth = 820.0f;
+    float menuAlpha  = 0.0f;
+    ImVec2 menuPos = ImVec2(0.0f, 0.0f);
+    bool menuPosInitialized = false;
 };
 static MenuState g_menu;
-static bool g_isInGame = false; // set each frame by DrawESP; gates FloatingButton + Menu
+static bool g_isInGame = false;
 
-// ── THEME SYSTEM ──────────────────────────────────────────────
-struct MenuTheme {
-    ImU32 bgMain;       // window background
-    ImU32 bgHeader;     // header bar bg
-    ImU32 bgContent;    // content area bg
-    ImU32 accent;       // slider grab, toggle on, selected tab bg
-    ImU32 accentHov;    // hovered accent
-    ImU32 xBtn;         // X close button
-    ImU32 xBtnHov;
-    ImU32 separator;    // separator lines
-    ImU32 textPrimary;
-    ImU32 textSecondary;
-    ImU32 sectionLabel; // section header text
-};
+// ── Theme color globals ───────────────────────────────────────
+static ImU32 g_ThemeAccent = IM_COL32(231,171,42,255);
+static ImU32 g_ThemeBorder = IM_COL32(220,177,72,120);
+static ImU32 g_ThemeGlow   = IM_COL32(150,101,16,235);
+static ImU32 g_ThemeText   = IM_COL32(245,197,74,255);
 
-static const MenuTheme THEMES[3] = {
-    // 0 — Dark Red (default)
-    {
-        IM_COL32(21,21,21,255), IM_COL32(16,16,20,255), IM_COL32(21,21,21,255),
-        IM_COL32(200,30,30,255), IM_COL32(230,50,50,255),
-        IM_COL32(160,40,40,210), IM_COL32(220,40,40,255),
-        IM_COL32(50,50,65,160), IM_COL32(230,230,240,255), IM_COL32(140,140,150,255),
-        IM_COL32(158,158,178,255)
-    },
-    // 1 — Dark Glass (blue-gray glass)
-    {
-        IM_COL32(18,22,32,240), IM_COL32(14,18,28,250), IM_COL32(18,22,32,240),
-        IM_COL32(60,140,220,255), IM_COL32(90,165,245,255),
-        IM_COL32(40,100,180,210), IM_COL32(70,140,230,255),
-        IM_COL32(60,80,120,160), IM_COL32(220,230,245,255), IM_COL32(130,150,180,255),
-        IM_COL32(120,150,200,255)
-    },
-    // 2 — Dark Neon (cyan/green neon)
-    {
-        IM_COL32(12,18,18,255), IM_COL32(8,14,14,255), IM_COL32(12,18,18,255),
-        IM_COL32(0,220,180,255), IM_COL32(30,255,210,255),
-        IM_COL32(0,160,130,210), IM_COL32(0,220,180,255),
-        IM_COL32(0,80,70,160), IM_COL32(210,255,245,255), IM_COL32(100,180,160,255),
-        IM_COL32(80,200,170,255)
-    },
-};
-
-static inline const MenuTheme& GetTheme() {
-    int idx = persistent_int["iTheme"];
-    if (idx < 0 || idx > 2) idx = 2;   // default: Dark Neon
-    return THEMES[idx];
+static void ApplyTheme(int t) {
+    switch (t) {
+        case 1: // Red
+            g_ThemeAccent=IM_COL32(220,55,55,255); g_ThemeBorder=IM_COL32(200,45,45,130);
+            g_ThemeGlow  =IM_COL32(180,25,25,235); g_ThemeText  =IM_COL32(255,110,110,255); break;
+        case 2: // Cyan Neon
+            g_ThemeAccent=IM_COL32(25,215,195,255); g_ThemeBorder=IM_COL32(15,195,175,130);
+            g_ThemeGlow  =IM_COL32(8,140,130,235);  g_ThemeText  =IM_COL32(70,235,215,255); break;
+        case 3: // Purple
+            g_ThemeAccent=IM_COL32(155,75,220,255); g_ThemeBorder=IM_COL32(135,55,200,130);
+            g_ThemeGlow  =IM_COL32(115,35,175,235); g_ThemeText  =IM_COL32(185,115,255,255); break;
+        case 4: // Green
+            g_ThemeAccent=IM_COL32(45,195,75,255);  g_ThemeBorder=IM_COL32(35,175,55,130);
+            g_ThemeGlow  =IM_COL32(18,135,38,235);  g_ThemeText  =IM_COL32(95,225,125,255); break;
+        case 5: // Blue
+            g_ThemeAccent=IM_COL32(50,130,230,255); g_ThemeBorder=IM_COL32(40,110,210,130);
+            g_ThemeGlow  =IM_COL32(25,80,180,235);  g_ThemeText  =IM_COL32(100,175,255,255); break;
+        default: // Gold
+            g_ThemeAccent=IM_COL32(231,171,42,255); g_ThemeBorder=IM_COL32(220,177,72,120);
+            g_ThemeGlow  =IM_COL32(150,101,16,235); g_ThemeText  =IM_COL32(245,197,74,255); break;
+    }
 }
 
-// g_ExpiryTimestamp (from keylogin.h) replaces hardcoded EXPIRY_TS
-
 static bool DEBUG_BYPASS_LOGIN = false;
+static char g_licenseKeyInput[128] = "";
+static bool g_licenseKeyInputInitialized = false;
+
+static const char* BoolText(bool value) {
+    return value ? O("Yes") : O("No");
+}
+
+static void FormatRealtime(char* out, size_t outSize) {
+    time_t now = time(nullptr);
+    struct tm tmNow{};
+    localtime_r(&now, &tmNow);
+    strftime(out, outSize, O("%Y-%m-%d %H:%M:%S"), &tmNow);
+}
+
+static std::string AndroidProperty(const char* name, const char* fallback = "Unknown") {
+    char value[PROP_VALUE_MAX] = {0};
+    int len = __system_property_get(name, value);
+    return len > 0 ? std::string(value) : std::string(fallback);
+}
+
+static void TextWrappedColored(const ImVec4& color, const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    PushTextWrapPos(GetCursorPosX() + GetContentRegionAvail().x);
+    TextColoredV(color, fmt, args);
+    PopTextWrapPos();
+    va_end(args);
+}
+
+static std::string NormalizeLicenseKey(std::string key) {
+    key.erase(std::remove_if(key.begin(), key.end(), [](unsigned char c) {
+        return std::isspace(c);
+    }), key.end());
+    return key;
+}
+
 
 static float EaseOutBack(float x) {
     const float c1 = 1.70158f;
@@ -101,8 +117,7 @@ static void DrawGradientRect(ImDrawList* dl, ImVec2 p1, ImVec2 p2, ImU32 col1, I
     }
 }
 
-static bool SidebarButton(const char* label, GLuint iconTex, bool selected,
-                           float width, float btnH = 0.0f) {
+static bool GameNavButton(const char* label, int iconType, bool selected, float width, float height) {
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems) return false;
 
@@ -110,13 +125,8 @@ static bool SidebarButton(const char* label, GLuint iconTex, bool selected,
     const ImGuiStyle& style = g.Style;
     const ImGuiID id = window->GetID(label);
 
-    // Icon scales with button height — fills ~60% of button, min 36, max 48
-    float iconSize = btnH > 0.0f ? ImClamp(btnH * 0.60f, 36.0f, 48.0f) : 40.0f;
-    if (btnH <= 0.0f) btnH = iconSize + 20.0f;
-
     ImVec2 pos  = window->DC.CursorPos;
-    ImVec2 size = ImVec2(width, btnH);
-
+    ImVec2 size = ImVec2(width, height);
     const ImRect bb(pos, pos + size);
     ItemSize(size, style.FramePadding.y);
     if (!ItemAdd(bb, id)) return false;
@@ -125,118 +135,98 @@ static bool SidebarButton(const char* label, GLuint iconTex, bool selected,
     bool pressed = ButtonBehavior(bb, id, &hovered, &held);
 
     ImDrawList* dl = window->DrawList;
-    const MenuTheme& T = GetTheme();
-
-    float  vPad_      = (btnH - iconSize) * 0.5f;
-    ImVec2 iconCenter = ImVec2(bb.Min.x + width * 0.5f, bb.Min.y + vPad_ + iconSize * 0.5f);
-    float  iconBgSize = iconSize + 12.0f;
-
-    // Hover highlight
-    if (hovered && !selected)
-        dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(255,255,255,12), 10.0f);
-
-    // Selected: accent rounded rect
-    if (selected) {
-        dl->AddRectFilled(
-            ImVec2(iconCenter.x - iconBgSize * 0.5f, iconCenter.y - iconBgSize * 0.5f),
-            ImVec2(iconCenter.x + iconBgSize * 0.5f, iconCenter.y + iconBgSize * 0.5f),
-            T.accent, 12.0f);
+    ImU32 bg = selected ? IM_COL32(28, 28, 27, 245) : (hovered ? IM_COL32(24, 24, 23, 220) : IM_COL32(0, 0, 0, 0));
+    if (selected || hovered) {
+        dl->AddRectFilled(bb.Min, bb.Max, bg, 12.0f);
     }
 
-    // Draw icon texture — or gear shape if iconTex == 0
-    if (iconTex) {
-        ImVec2 iconMin = ImVec2(iconCenter.x - iconSize*0.5f, iconCenter.y - iconSize*0.5f);
-        ImVec2 iconMax = ImVec2(iconCenter.x + iconSize*0.5f, iconCenter.y + iconSize*0.5f);
-        dl->AddImage((void*)(intptr_t)iconTex, iconMin, iconMax, ImVec2(0,0), ImVec2(1,1));
-    } else {
-        // Gear icon drawn with primitives (for Settings tab)
-        float  gr  = iconSize * 0.38f;  // outer radius
-        float  ir  = iconSize * 0.20f;  // inner radius
-        float  tr  = iconSize * 0.10f;  // tooth radius
-        int    tc  = 8;                 // teeth count
-        ImU32  col = selected ? IM_COL32(255,255,255,255) : IM_COL32(160,160,175,255);
-        dl->AddCircle(iconCenter, ir, col, 0, 2.5f);
-        for (int i = 0; i < tc; i++) {
-            float a0 = (float)i / tc * IM_PI * 2.0f;
-            float a1 = a0 + IM_PI / tc * 0.65f;
-            ImVec2 p0(iconCenter.x + cosf(a0)*gr, iconCenter.y + sinf(a0)*gr);
-            ImVec2 p1(iconCenter.x + cosf(a1)*gr, iconCenter.y + sinf(a1)*gr);
-            ImVec2 p2(iconCenter.x + cosf(a1)*(gr+tr), iconCenter.y + sinf(a1)*(gr+tr));
-            ImVec2 p3(iconCenter.x + cosf(a0)*(gr+tr), iconCenter.y + sinf(a0)*(gr+tr));
-            dl->AddQuadFilled(p0, p1, p2, p3, col);
-            dl->AddLine(ImVec2(iconCenter.x + cosf(a0)*ir, iconCenter.y + sinf(a0)*ir), p0, col, 2.0f);
+    ImVec2 center(bb.Min.x + width * 0.5f, bb.Min.y + 24.0f);
+    ImU32 iconCol = selected ? g_ThemeAccent : IM_COL32(210, 210, 210, 225);
+    ImU32 textCol = selected ? g_ThemeText   : IM_COL32(205, 205, 205, 230);
+
+    if (iconType == 0) { // eye / visual
+        dl->PathClear();
+        for (int i = 0; i < 28; ++i) {
+            float a = ((float)i / 28.0f) * (IM_PI * 2.0f);
+            dl->PathLineTo(ImVec2(center.x + cosf(a) * 17.0f, center.y + sinf(a) * 9.0f));
         }
+        dl->PathStroke(iconCol, true, 2.0f);
+        dl->AddCircleFilled(center, 4.5f, iconCol, 16);
+    } else if (iconType == 1) { // crosshair / aim
+        dl->AddCircle(center, 10.5f, iconCol, 24, 2.0f);
+        dl->AddLine(ImVec2(center.x - 16, center.y), ImVec2(center.x - 6, center.y), iconCol, 2.0f);
+        dl->AddLine(ImVec2(center.x + 6, center.y), ImVec2(center.x + 16, center.y), iconCol, 2.0f);
+        dl->AddLine(ImVec2(center.x, center.y - 16), ImVec2(center.x, center.y - 6), iconCol, 2.0f);
+        dl->AddLine(ImVec2(center.x, center.y + 6), ImVec2(center.x, center.y + 16), iconCol, 2.0f);
+    } else if (iconType == 2) { // simple cog / misc
+        dl->AddCircle(center, 10.0f, iconCol, 20, 2.0f);
+        for (int i = 0; i < 8; ++i) {
+            float a = (float)i * IM_PI / 4.0f;
+            ImVec2 p1(center.x + cosf(a) * 13.0f, center.y + sinf(a) * 13.0f);
+            ImVec2 p2(center.x + cosf(a) * 17.0f, center.y + sinf(a) * 17.0f);
+            dl->AddLine(p1, p2, iconCol, 2.0f);
+        }
+        dl->AddCircleFilled(center, 3.0f, iconCol, 12);
+    } else { // user
+        dl->AddCircle(ImVec2(center.x, center.y - 6), 6.5f, iconCol, 16, 2.0f);
+        dl->AddBezierCubic(ImVec2(center.x - 15, center.y + 13), ImVec2(center.x - 10, center.y + 2),
+                           ImVec2(center.x + 10, center.y + 2), ImVec2(center.x + 15, center.y + 13), iconCol, 2.2f, 18);
+    }
+
+    ImVec2 labelSize = CalcTextSize(label);
+    dl->AddText(ImVec2(bb.Min.x + (width - labelSize.x) * 0.5f, bb.Min.y + 48.0f), textCol, label);
+
+    if (selected) {
+        dl->AddRectFilled(ImVec2(bb.Max.x - 5.0f, bb.Min.y + 12.0f),
+                          ImVec2(bb.Max.x, bb.Max.y - 12.0f), g_ThemeAccent, 4.0f);
     }
 
     return pressed;
 }
 
-static bool CmCombo(const char* label, const char* sub, int* val, const char* items_z) {
-    ImGuiWindow* window = GetCurrentWindow();
-    if (window->SkipItems) return false;
-    
-    // ── AMBIL TEMA AKTIF ──
-    const MenuTheme& T = GetTheme();
-    ImU32 accentColor = T.accent;
-    ImU32 accentBright = IM_COL32(
-        (accentColor >> 0 & 0xFF) + 40,
-        (accentColor >> 8 & 0xFF) + 40,
-        (accentColor >> 16 & 0xFF) + 40,
-        255
-    );
-    
-    ImVec2 pos = window->DC.CursorPos;
-    float rowH = 64.0f;
-    ImVec2 size = ImVec2(GetContentRegionAvail().x, rowH);
-    const ImRect bb(pos, pos + size);
-
-    ImDrawList* dl = window->DrawList;
-    
-    // ── BACKGROUND ──
-    dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(26, 38, 58, 180), 12.0f);
-    dl->AddRect(bb.Min, bb.Max, IM_COL32(55, 70, 95, 120), 12.0f, 0, 1.0f);
-    
-    // ── ACCENT LINE DI KIRI (PAKAI WARNA TEMA) ──
-    dl->AddRectFilled(
-        ImVec2(bb.Min.x, bb.Min.y + 4),
-        ImVec2(bb.Min.x + 3, bb.Max.y - 4),
-        accentColor, 2.0f
-    );
-
-    // ── LABEL ──
-    ImVec2 ts = CalcTextSize(label);
-    dl->AddText(ImVec2(bb.Min.x + 18, bb.Min.y + 12), T.textPrimary, label);
-    
-    if (sub && sub[0] != '\0') {
-        dl->AddText(ImVec2(bb.Min.x + 18, bb.Min.y + 12 + ts.y + 4), T.textSecondary, sub);
+static void DrawSectionTitle(const char* icon, const char* title, const char* subtitle = nullptr) {
+    ImDrawList* dl = GetWindowDrawList();
+    ImVec2 pos = GetCursorScreenPos();
+    ImVec2 avail = GetContentRegionAvail();
+    SetWindowFontScale(1.08f);
+    TextColored(ImVec4(0.95f, 0.72f, 0.22f, 1.0f), "[%s]", icon);
+    SameLine();
+    TextColored(ImVec4(0.92f, 0.92f, 0.90f, 1.0f), "%s", title);
+    SetWindowFontScale(1.0f);
+    if (subtitle) {
+        PushTextWrapPos(GetCursorPosX() + avail.x);
+        TextColored(ImVec4(0.62f, 0.62f, 0.62f, 1.0f), "%s", subtitle);
+        PopTextWrapPos();
     }
-
-    // ── COMBO ──
-    SetCursorScreenPos(ImVec2(bb.Max.x - 180 - 18, bb.Min.y + (rowH - 30) * 0.5f));
-    
-    // Warna dropdown ngikutin tema
-    ImVec4 accentF = ImGui::ColorConvertU32ToFloat4(accentColor);
-    ImVec4 accentBrightF = ImGui::ColorConvertU32ToFloat4(accentBright);
-    
-    PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(35, 50, 75, 255));
-    PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(45, 62, 90, 255));
-    PushStyleColor(ImGuiCol_FrameBgActive,  IM_COL32(50, 68, 100, 255));
-    PushStyleColor(ImGuiCol_Button,         accentColor);
-    PushStyleColor(ImGuiCol_Text,           T.textPrimary);
-    PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-    PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 6));
-    
-    SetNextItemWidth(180);
-    bool changed = Combo((std::string("##cb_") + label).c_str(), val, items_z);
-    
-    PopStyleVar(2);
-    PopStyleColor(5);
-
-    Dummy(ImVec2(0, 0));
-    SetCursorScreenPos(ImVec2(bb.Min.x, bb.Max.y + 4));
-    
-    return changed;
+    float y = GetCursorScreenPos().y + 6.0f;
+    dl->AddLine(ImVec2(pos.x, y), ImVec2(pos.x + avail.x, y), IM_COL32(98, 75, 28, 150), 1.0f);
+    Dummy(ImVec2(0, 13.0f));
 }
+
+
+static void DrawGoldBar(const char* label, const char* value, float valueRatio, float height = 48.0f) {
+    ImGuiWindow* window = GetCurrentWindow();
+    ImDrawList* dl = window->DrawList;
+    ImVec2 pos = GetCursorScreenPos();
+    float w = GetContentRegionAvail().x;
+    ImVec2 size(w, height);
+
+    InvisibleButton(label, size);
+    ImU32 frameCol = IM_COL32(27, 27, 25, 235);
+    ImU32 fillCol = IM_COL32(212, 152, 30, 245);
+    dl->AddRectFilled(pos, pos + size, frameCol, 8.0f);
+    dl->AddRect(pos, pos + size, IM_COL32(55, 45, 25, 210), 8.0f, 0, 1.0f);
+    float fillW = ImClamp(w * valueRatio, 0.0f, w);
+    dl->AddRectFilled(pos, ImVec2(pos.x + fillW, pos.y + height), fillCol, 8.0f);
+
+    ImVec2 vSize = CalcTextSize(value);
+    dl->AddText(ImVec2(pos.x + w * 0.5f - vSize.x * 0.5f, pos.y + height * 0.5f - vSize.y * 0.5f),
+                IM_COL32(255, 230, 157, 255), value);
+    ImVec2 lSize = CalcTextSize(label);
+    dl->AddText(ImVec2(pos.x + w + 12.0f, pos.y + height * 0.5f - lSize.y * 0.5f),
+                IM_COL32(245, 196, 78, 255), label);
+}
+
 
 static bool ToggleSwitch(const char* label, bool* v) {
     ImGuiWindow* window = GetCurrentWindow();
@@ -246,13 +236,13 @@ static bool ToggleSwitch(const char* label, bool* v) {
     const ImGuiStyle& style = g.Style;
     const ImGuiID id = window->GetID(label);
 
-    float scale = 1.5f; // 1.5f is with 50% bigger than writen values
+    float scale = 1.5f;
     float height = 32.0f * scale;
-    float width = 56.0f * scale;
+    float width  = 56.0f * scale;
     float radius = height * 0.5f;
 
     ImVec2 textSize = CalcTextSize(label);
-    ImVec2 pos = window->DC.CursorPos;
+    ImVec2 pos  = window->DC.CursorPos;
     ImVec2 size = ImVec2(GetContentRegionAvail().x, ImMax(height, textSize.y) + style.FramePadding.y * 2 + 10.0f);
 
     const ImRect bb(pos, pos + size);
@@ -264,33 +254,33 @@ static bool ToggleSwitch(const char* label, bool* v) {
     if (pressed) *v = !*v;
 
     static std::map<ImGuiID, float> switchAnim;
-    float& animT = switchAnim[id];
-    float targetT = *v ? 1.0f : 0.0f;
+    float& animT   = switchAnim[id];
+    float targetT  = *v ? 1.0f : 0.0f;
     animT += (targetT - animT) * g.IO.DeltaTime * 14.0f;
 
     ImDrawList* dl = window->DrawList;
-    const MenuTheme& T = GetTheme();
-    
+
     if (hovered) {
         dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(45, 45, 55, 100), 10.0f);
     }
-    
+
     ImVec2 togglePos = ImVec2(bb.Max.x - width - 15.0f, bb.Min.y + (size.y - height) * 0.5f);
     ImVec2 toggleEnd = ImVec2(togglePos.x + width, togglePos.y + height);
-    
-    ImVec4 offColor  = ImVec4(0.27f, 0.27f, 0.31f, 1.0f);
-    ImVec4 onColorV  = ImGui::ColorConvertU32ToFloat4(T.accent);
-    ImVec4 bgColorV  = ImLerp(offColor, onColorV, animT);
+
+    ImVec4 offColor = ImVec4(0.27f, 0.27f, 0.31f, 1.0f);
+    ImVec4 onColor  = ImVec4(1.0f, 0.f, 0.f, 1.0f);
+    ImVec4 bgColorV = ImLerp(offColor, onColor, animT);
     dl->AddRectFilled(togglePos, toggleEnd, ImColor(bgColorV), radius);
-    
+
     float knobX = togglePos.x + radius + (width - height) * animT;
     float knobY = togglePos.y + radius;
     float knobR = radius - 4.0f;
-    
+
     dl->AddCircleFilled(ImVec2(knobX, knobY), knobR + 2.0f, IM_COL32(0, 0, 0, 40));
     dl->AddCircleFilled(ImVec2(knobX, knobY), knobR, IM_COL32(255, 255, 255, 255));
 
-    dl->AddText(ImVec2(bb.Min.x + 15.0f, bb.Min.y + (size.y - textSize.y) * 0.5f), IM_COL32(230, 230, 240, 255), label);
+    dl->AddText(ImVec2(bb.Min.x + 15.0f, bb.Min.y + (size.y - textSize.y) * 0.5f),
+                IM_COL32(230, 230, 240, 255), label);
 
     return pressed;
 }
@@ -334,128 +324,59 @@ INLINE void DrawExpired(ImGuiIO& io) {
     PopStyleColor();
 }
 
-static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
+static bool g_aqCounting = false;
+static std::chrono::steady_clock::time_point g_aqLastCall;
+static std::chrono::steady_clock::time_point g_aqCountdownStart;
 
-/*static void DrawLiveStatusOverlay(ImGuiIO& io) {
-    if (!persistent_bool[O("bAutoPlay")]) return;
+INLINE void DrawAutoQueue() {
+    if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
+        auto now = std::chrono::steady_clock::now();
 
-    // ================================================================
-    // 1. STATE AUTOPLAY
-    // ================================================================
-    const char* stateStr = "Idle";
-    switch (AutoPlay::state) {
-        case AutoPlay::SCANNING:   stateStr = "Scanning";   break;
-        case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
-        case AutoPlay::EXECUTING:  stateStr = "Executing";  break;
-        default:                   stateStr = "Idle";       break;
-    }
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - g_aqLastCall).count() > 500)
+            g_aqCounting = false;
+        g_aqLastCall = now;
 
-    // ================================================================
-    // 2. HUMAN STATE
-    // ================================================================
-    const char* humanStr = "Idle";
-    switch (AutoPlay::humanState) {
-        case AutoPlay::HUM_IDLE:            humanStr = "Idle"; break;
-        case AutoPlay::HUM_THINKING:        humanStr = "Thinking"; break;
-        case AutoPlay::HUM_OVERSHOOTING:    humanStr = "Overshoot"; break;
-        case AutoPlay::HUM_CORRECTING:      humanStr = "Correcting"; break;
-        case AutoPlay::HUM_HOLDING:         humanStr = "Holding"; break;
-        case AutoPlay::HUM_STABILIZING:     humanStr = "Stabilizing"; break;
-        case AutoPlay::HUM_PULLING:         humanStr = "Pulling"; break;
-        case AutoPlay::HUM_DELAY_BEFORE_SHOT: humanStr = "Delay"; break;
-        default:                            humanStr = "Idle"; break;
-    }
-
-    // ================================================================
-    // 3. SHOT FOUND
-    // ================================================================
-    bool hasCandidate = (g_CurrentCandidate.idx != -1);
-    bool isScanning = (AutoPlay::state == AutoPlay::SCANNING);
-    bool isExecuting = (AutoPlay::state == AutoPlay::EXECUTING);
-
-    // ================================================================
-    // 4. WINDOW SETUP
-    // ================================================================
-    const float padH  = 24.0f;
-    const float padV  = 24.0f;
-
-    SetNextWindowPos(
-        ImVec2(padH, io.DisplaySize.y - padV),
-        ImGuiCond_Always,
-        ImVec2(0.0f, 1.0f)
-    );
-
-    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(14, 14, 18, 185));
-    PushStyleColor(ImGuiCol_Border,   IM_COL32(60, 60, 80, 120));
-    PushStyleVar(ImGuiStyleVar_WindowRounding,  12.0f);
-    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    PushStyleVar(ImGuiStyleVar_WindowPadding,   ImVec2(14.0f, 10.0f));
-
-    if (Begin(O("##LiveStatus"), nullptr,
-              ImGuiWindowFlags_NoTitleBar   | ImGuiWindowFlags_NoResize    |
-              ImGuiWindowFlags_NoMove       | ImGuiWindowFlags_NoScrollbar |
-              ImGuiWindowFlags_NoInputs     | ImGuiWindowFlags_NoSavedSettings |
-              ImGuiWindowFlags_AlwaysAutoResize)) {
-
-        ImDrawList* dl = GetWindowDrawList();
-        ImVec2 wp = GetWindowPos();
-        ImVec2 ws = GetWindowSize();
-
-        // ================================================================
-        // ACCENT BAR
-        // ================================================================
-        ImU32 accentCol;
-        if (hasCandidate) {
-            accentCol = IM_COL32(0, 255, 0, 255);
-        } else if (isScanning || isExecuting) {
-            accentCol = IM_COL32(0, 200, 255, 255);
-        } else {
-            accentCol = IM_COL32(100, 100, 100, 180);
-        }
-        dl->AddRectFilled(wp, ImVec2(wp.x + 3.0f, wp.y + ws.y), accentCol, 12.0f, ImDrawFlags_RoundCornersLeft);
-
-        SetWindowFontScale(0.95f);
-
-        // ================================================================
-        // BARIS 1: STATUS UTAMA (Shot Found / Scanning / Aiming)
-        // ================================================================
-        if (hasCandidate) {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), O("Shot Found!"));
-        } else {
-            // ================================================================
-            // IDLE: GAK TULIS APA-APA (BIAR GAK DOBEL)
-            // ================================================================
+        if (!g_aqCounting) {
+            g_aqCounting = true;
+            g_aqCountdownStart = now;
         }
 
-        // ================================================================
-        // BARIS 2: STATE
-        // ================================================================
-        ImU32 stateCol = (AutoPlay::state != AutoPlay::IDLE)
-            ? IM_COL32(0, 200, 255, 255)
-            : IM_COL32(130, 130, 145, 255);
-        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("State     "));
-        SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(stateCol), stateStr);
+        auto elapsed     = std::chrono::duration_cast<std::chrono::milliseconds>(now - g_aqCountdownStart).count();
+        int  remaining_ms = 3000 - (int)elapsed;
+        std::string count_str = std::to_string((remaining_ms / 1000) + 1);
 
-        // ================================================================
-        // BARIS 3: HUMAN STATE (SELALU TAMPIL)
-        // ================================================================
-        ImU32 humanCol = (AutoPlay::humanState != AutoPlay::HUM_IDLE)
-            ? IM_COL32(255, 200, 0, 255)
-            : IM_COL32(130, 130, 145, 255);
-        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Human     "));
-        SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);
+        SetNextWindowPos(ImVec2(Width * 0.5f, Height * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 1.f));
+        PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(32.0f, 20.0f));
+        PushStyleVar(ImGuiStyleVar_WindowRounding, 24.0f);
 
-        SetWindowFontScale(1.0f);
+        if (Begin(O("##AutoQueueCD"), nullptr,
+                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                  ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings |
+                  ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImDrawList* dl  = GetWindowDrawList();
+            ImVec2      wp  = GetWindowPos();
+            ImVec2      ws  = GetWindowSize();
+            dl->AddRectFilled(wp, ImVec2(wp.x + ws.x, wp.y + ws.y), IM_COL32(20, 20, 28, 0), 24.0f);
+            SetWindowFontScale(3.5f);
+            TextColored(ImVec4(1.f, 0.f, 0.f, 1.0f), "%s", count_str.c_str());
+            SetWindowFontScale(1.0f);
+        }
+        End();
+        PopStyleVar(2);
+        PopStyleColor();
     }
-    End();
+}
 
-    PopStyleVar(3);
-    PopStyleColor(2);
-}*/
+#include "mod/ButtonClicker.h"
 
-    
+static void DrawToggleButton(bool cancelMode);
+
+static bool  g_autoPlayCalculating = false;
+static float g_sideBtnsX      = 0.0f;
+static float g_sideBtnsY      = 0.0f;
+static float g_toggleRotAngle = 0.0f;
+
 INLINE void DrawESP(ImDrawList* draw) {
     if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
         if (!sharedGameManager) return;
@@ -478,8 +399,16 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
         if (!mainStateManager) return;
+
         g_isInGame = mainStateManager.isInGame();
-          if (!g_isInGame) return;
+
+        if (!g_isInGame) {
+            if (persistent_bool[O("bAutoQueue")]) {
+                if (!sharedMenuManager.isInQueue()) DrawAutoQueue();
+                DrawToggleButton(true);
+            }
+            return;
+        }
 
         auto visualCue = sharedGameManager.mVisualCue();
 
@@ -497,157 +426,303 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (!gameStateManager) return;
 
         if (persistent_bool[O("bAutoPlay")]) {
-           // DrawToggleButton();
+            DrawToggleButton(false);
             AutoPlay::Update();
         }
 
-
         auto stateId = gameStateManager.getCurrentStateId();
-        if (stateId == 4) gPrediction->determineShotResult(false);
-        if (stateId == 6 || stateId == 8) return;
-        if (stateId == 7) {
-            if (!persistent_bool["bEnemyLine"]) return;
-            gPrediction->determineShotResult(false);
+        if (stateId == 4 || stateId == 7 || stateId == 8) gPrediction->determineShotResult(false);
+
+        // ── SHOOT ANIMATION ─────────────────────────────────────────────────
+        // Detect transisi state 4→6 (tembakan dilepas) → expanding ring flash
+        static int    s_prevState  = 0;
+        static float  s_shotTime   = -999.0f;
+        static ImVec2 s_shotOrigin = ImVec2(0, 0);
+        if (s_prevState == 4 && stateId == 6 && gPrediction && gPrediction->guiData.ballsCount > 0) {
+            s_shotTime = (float)GetTime();
+            for (int ci = 0; ci < gPrediction->guiData.ballsCount; ci++) {
+                auto& cb = gPrediction->guiData.balls[ci];
+                if (cb.classification == Ball::Classification::CUE_BALL && cb.onTable) {
+                    s_shotOrigin = WorldToScreen(cb.initialPosition);
+                    break;
+                }
+            }
+        }
+        s_prevState = stateId;
+
+        // Track giliran lokal player: pakai sharedGameManager.mStateManager() persis seperti AutoPlay
+        static bool s_localTurn = false;
+        if (stateId == 4 || stateId == 7 || stateId == 8)
+            s_localTurn = sharedGameManager.mStateManager().isPlayerTurn();
+        else if (stateId != 6)
+            s_localTurn = false;
+
+        if (persistent_bool[O("bESP_ShootAnim")]) {
+            float el = (float)GetTime() - s_shotTime;
+            if (el >= 0.0f && el < 0.9f) {
+                float prog = el / 0.9f;
+                // 3 cincin yang mengembang dengan delay berselang
+                for (int r = 0; r < 3; r++) {
+                    float rp = fmodf(prog + r * 0.333f, 1.0f);
+                    draw->AddCircle(s_shotOrigin, 15.0f + rp * 95.0f,
+                                    IM_COL32(255, 210, 60, (ImU8)(190*(1.0f-rp))), 32, 3.0f);
+                }
+                // Flash awal setelah tembak
+                if (prog < 0.18f) {
+                    float fa = (0.18f - prog) / 0.18f;
+                    draw->AddCircleFilled(s_shotOrigin, 36.0f, IM_COL32(255, 230, 80, (ImU8)(110*fa)));
+                    draw->AddCircle(s_shotOrigin, 18.0f, IM_COL32(255, 255, 120, (ImU8)(220*fa)), 24, 4.0f);
+                }
+            }
+        }
+
+        // ── BALL ROLLING ANIMATION (state 6) ────────────────────────────────
+        // Hanya tampil saat giliran local player (s_localTurn = true dari state 4/7/8)
+        if (stateId == 6) {
+            if (s_localTurn && persistent_bool[O("bESP_RollingAnim")] && persistent_bool[O("bESP_DrawPredictionLine")] && gPrediction && gPrediction->guiData.ballsCount > 0) {
+                float t = (float)GetTime();
+                for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                    auto& ball = gPrediction->guiData.balls[i];
+                    if (!ball.onTable || ball.initialPosition == ball.predictedPosition) continue;
+                    ImVec2 destPos = WorldToScreen(ball.predictedPosition);
+                    float pulse = 0.5f + 0.5f * sinf(t * 6.5f + i * 0.85f);
+                    // Outer pulsing ring
+                    draw->AddCircle(destPos, 22.0f + pulse*7.0f,
+                                    IM_COL32(255, 200, 50, (ImU8)(55+40*pulse)), 32, 3.0f);
+                    // Inner fill
+                    draw->AddCircleFilled(destPos, 13.0f,
+                                          IM_COL32(255, 200, 50, (ImU8)(18+18*pulse)), 20);
+                    // 4 orbit dots yang berputar
+                    for (int k = 0; k < 4; k++) {
+                        float a = t * 5.5f + k * IM_PI * 0.5f;
+                        ImVec2 orb(destPos.x + cosf(a)*18.0f, destPos.y + sinf(a)*18.0f);
+                        draw->AddCircleFilled(orb, 3.5f, IM_COL32(255, 205, 50, 215), 8);
+                    }
+                }
+            }
+            return;
         }
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
             for (int i = 0; i < 6; i++) {
-                if (Prediction::pocketStatus[i]) {
+                if (gPrediction->guiData.pocketStatus[i]) {
                     auto screenPos = WorldToScreen(pockets[i]);
                     draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 30, GREEN, 0, 5.f);
                 }
             }
         }
-        
-        // ── BACA LINE STYLE ──
-        int lineStyle = persistent_int["iLineStyle"];
-        if (lineStyle < 0 || lineStyle > 1) lineStyle = 0;
-        
-        float lineThick = (float)persistent_int[O("iLineThickness")];
-        if (lineThick < 1.f) lineThick = 1.f;
-        
-        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+
+        if (persistent_bool[O("bESP_DrawEnemyLines")] && gPrediction->guiData.ballsCount > 0) {
+            // ── ENEMY LINES (animated dashed cyan, no red) ──────────────────
+            ImVec2 cuePos = ImVec2(-1.f, -1.f);
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                auto& ball = gPrediction->guiData.balls[i];
-                if (i == 0) continue;
-                
-                // CEK JENIS BOLA
-                bool isStripes = (i >= 9 && i <= 15);
-                bool isSolid = (i >= 1 && i <= 7);
-                
-                if (ball.initialPosition != ball.predictedPosition && ball.positions.size() > 1) {
-                    
-                    // ── STRIPES (9-15): STRIPED / DASHED ──
-                    if (isStripes && lineStyle == 1) {
-                        float dashLength = 20.0f;
-                        float gapLength = 12.0f;
-                        float segmentLength = dashLength + gapLength;
-                        
-                        for (int j = 1; j < ball.positions.size(); j++) {
-                            ImVec2 start = WorldToScreen(ball.positions[j-1]);
-                            ImVec2 end = WorldToScreen(ball.positions[j]);
-                            
-                            float dx = end.x - start.x, dy = end.y - start.y;
-                            float len = sqrtf(dx*dx + dy*dy);
-                            
-                            if (len < 1.0f) continue;
-                            
-                            float nx = dx / len, ny = dy / len;
-                            
-                            float drawn = 0.0f;
-                            bool isWhite = false;
-                            
-                            while (drawn < len) {
-                                float dashStart = drawn;
-                                float dashEnd = std::min(drawn + dashLength, len);
-                                
-                                ImVec2 p1(start.x + nx * dashStart, start.y + ny * dashStart);
-                                ImVec2 p2(start.x + nx * dashEnd, start.y + ny * dashEnd);
-                                
-                                ImU32 color;
-                                if (isWhite) {
-                                    color = IM_COL32(255, 255, 255, 255);
-                                } else {
-                                    color = colors[i]; // colors[i] udah di-convert ke ImU32
-                                }
-                                
-                                // Stripes: outline putih + warna
-                                draw->AddLine(p1, p2, IM_COL32(255, 255, 255, 200), lineThick + 2.0f);
-                                draw->AddLine(p1, p2, color, lineThick);
-                                
-                                drawn += segmentLength;
-                                isWhite = !isWhite;
-                            }
-                        }
-                    }
-                    // ── SOLID (1-7) ATAU STRIPES TAPI LINE_STYLE SOLID ──
-                    else {
-                        ImVec2 lastPos = WorldToScreen(ball.positions[0]);
-                        for (int j = 1; j < ball.positions.size(); j++) {
-                            ImVec2 point = WorldToScreen(ball.positions[j]);
-                            
-                            if (isStripes) {
-                                // STRIPES pake striped juga kalo lineStyle 0 (SOLID)
-                                // Tapi biar beda, kita kasih outline putih tipis
-                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 150), lineThick + 2.0f);
-                                draw->AddLine(lastPos, point, colors[i], lineThick);
-                            } else {
-                                // SOLID: warna doang
-                                draw->AddLine(lastPos, point, colors[i], lineThick);
-                            }
-                            
-                            lastPos = point;
-                        }
-                    }
+                auto& cb = gPrediction->guiData.balls[i];
+                if (cb.classification == Ball::Classification::CUE_BALL && cb.onTable) {
+                    cuePos = WorldToScreen(cb.initialPosition);
+                    break;
                 }
             }
-            
-            // ── BOLA DI UJUNG ──
+            if (cuePos.x < 0.f) goto skip_enemy_lines;
+
+            {
+                float dashT = fmodf((float)GetTime() * 1.8f, 1.0f);
+                for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                    auto& ball = gPrediction->guiData.balls[i];
+                    if (!ball.originalOnTable || !ball.onTable) continue;
+                    if (ball.classification == Ball::Classification::CUE_BALL) continue;
+                    if (ball.classification == Ball::Classification::ERR_CLASSIFICATION) continue;
+
+                    bool isEnemy = false;
+                    if (myclass == Ball::Classification::SOLID) {
+                        isEnemy = ball.classification == Ball::Classification::STRIPE ||
+                                  ball.classification == Ball::Classification::EIGHT_BALL;
+                    } else if (myclass == Ball::Classification::STRIPE) {
+                        isEnemy = ball.classification == Ball::Classification::SOLID ||
+                                  ball.classification == Ball::Classification::EIGHT_BALL;
+                    } else {
+                        isEnemy = true;
+                    }
+                    if (!isEnemy) continue;
+
+                    ImVec2 enemyPos = WorldToScreen(ball.initialPosition);
+
+                    // Dashed animated line dari cue ke bola musuh — cyan, bukan merah
+                    ImVec2 ld(enemyPos.x - cuePos.x, enemyPos.y - cuePos.y);
+                    float dist = sqrtf(ld.x*ld.x + ld.y*ld.y);
+                    if (dist > 1.0f) {
+                        ld.x /= dist; ld.y /= dist;
+                        const float dLen = 13.0f, gLen = 8.0f, seg = dLen + gLen;
+                        float off = dashT * seg;
+                        for (float d = off - seg; d < dist; d += seg) {
+                            float d0 = d < 0.0f ? 0.0f : d;
+                            float d1 = (d + dLen) > dist ? dist : (d + dLen);
+                            if (d1 <= d0) continue;
+                            float fade = 1.0f - d0 / dist;
+                            ImVec2 p0(cuePos.x + ld.x*d0, cuePos.y + ld.y*d0);
+                            ImVec2 p1(cuePos.x + ld.x*d1, cuePos.y + ld.y*d1);
+                            draw->AddLine(p0, p1, IM_COL32(80, 200, 255, (ImU8)(165*fade)), 2.2f);
+                        }
+                    }
+
+                    // Pulsing ring highlight di bola musuh
+                    float pulse = 0.5f + 0.5f * sinf((float)GetTime() * 4.5f + i * 1.1f);
+                    float pr = 13.0f + pulse * 4.0f;
+                    draw->AddCircleFilled(enemyPos, pr, IM_COL32(80, 200, 255, (ImU8)(28+22*pulse)), 24);
+                    draw->AddCircle(enemyPos, pr, IM_COL32(80, 200, 255, (ImU8)(165+70*pulse)), 24, 2.2f);
+                }
+            }
+            skip_enemy_lines:;
+        }
+
+        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+            float lineThick = (float)persistent_int[O("iLineThickness")];
+            if (lineThick < 1.f) lineThick = 1.f;
+
+            const ImVec2& dsp = GetIO().DisplaySize;
+            const float margin = 300.0f;
+
+            // Pass 1: garis lintasan prediksi
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-                if (i == 0) continue;
-                
-                if (ball.initialPosition != ball.predictedPosition) {
-                    ImVec2 screenPos = WorldToScreen(ball.predictedPosition);
-                    draw->AddCircle(screenPos, 20, colors[i], 0, 6.f);
-                    draw->AddCircleFilled(screenPos, 20, colors[i]);
+                if (ball.initialPosition == ball.predictedPosition) continue;
+                if (ball.positions.size() < 2) continue;
+                // Inisialisasi dari positions[0] agar segmen pertama ikut tergambar
+                ImVec2 lastPos = WorldToScreen(ball.positions[0]);
+                for (int j = 1; j < (int)ball.positions.size(); j++) {
+                    ImVec2 point = WorldToScreen(ball.positions[j]);
+                    // Skip titik yang jauh di luar layar (posisi fisika off-table)
+                    bool lastOk = (lastPos.x > -margin && lastPos.x < dsp.x + margin &&
+                                   lastPos.y > -margin && lastPos.y < dsp.y + margin);
+                    bool pointOk = (point.x > -margin && point.x < dsp.x + margin &&
+                                    point.y > -margin && point.y < dsp.y + margin);
+                    if (lastOk && pointOk)
+                        draw->AddLine(lastPos, point, colors[i], lineThick);
+                    lastPos = point;
                 }
+            }
+
+            // Pass 2: circle di posisi awal (outline) & prediksi (filled) — persis seperti source
+            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
+                if (ball.initialPosition == ball.predictedPosition) continue;
+                draw->AddCircle(WorldToScreen(ball.initialPosition), 20.0f, colors[i], 0, 6.0f);
+                draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20.0f, colors[i]);
             }
         }
     }
 }
 
-static void DrawSidebar(float sidebarW, float winH, float topOffset) {
-    static GLuint play_icon_tex = LoadTextureFromMemory(play_icon_png, play_icon_png_len);
-    static GLuint user_icon_tex = LoadTextureFromMemory(user_icon_png, user_icon_png_len);
+static void DrawSidebar(float winH, float sidebarW) {
+    ImDrawList* dl = GetWindowDrawList();
+    ImVec2 wp = GetWindowPos();
 
-    ImGuiContext& g  = *GImGui;
-    ImDrawList*   dl = GetWindowDrawList();
-    ImVec2        wp = GetWindowPos();
+    // Hitung sizeScale dari sidebarW agar semua dimensi proporsional
+    const float ss = sidebarW / 170.0f;
 
-    const MenuTheme& T = GetTheme();
+    dl->AddRectFilled(wp, ImVec2(wp.x + sidebarW, wp.y + winH), IM_COL32(12, 13, 12, 242), 16.0f,
+                      ImDrawFlags_RoundCornersLeft);
+    {
+        float gTop = 62.0f * ss, gBot = winH - 35.0f * ss;
+        if (gTop < gBot)
+            dl->AddRectFilled(ImVec2(wp.x + sidebarW - 5.0f, wp.y + gTop),
+                              ImVec2(wp.x + sidebarW,         wp.y + gBot), g_ThemeGlow, 5.0f);
+    }
+    dl->AddLine(ImVec2(wp.x + 18.0f * ss, wp.y + 116.0f * ss),
+                ImVec2(wp.x + sidebarW - 18.0f * ss, wp.y + 116.0f * ss),
+                IM_COL32(92, 70, 25, 180), 1.0f);
 
-    // Vertical separator on right edge of sidebar
-    dl->AddLine(
-        ImVec2(wp.x + sidebarW - 1.0f, wp.y + topOffset),
-        ImVec2(wp.x + sidebarW - 1.0f, wp.y + winH - 10.0f),
-        T.separator, 1.0f
-    );
+    // LYN4XP logo
+    {
+        static GLuint lyn4xp_tex = LoadTextureFromMemory(lyn4xp_logo_png, lyn4xp_logo_png_len);
+        const float iconSz = 52.0f * ss;
+        ImVec2 iconMin(wp.x + sidebarW * 0.5f - iconSz * 0.5f, wp.y + 46.0f * ss);
+        ImVec2 iconMax(iconMin.x + iconSz, iconMin.y + iconSz);
+        if (lyn4xp_tex)
+            dl->AddImageRounded((void*)(intptr_t)lyn4xp_tex, iconMin, iconMax,
+                                ImVec2(0,0), ImVec2(1,1), IM_COL32(255,255,255,230), 8.0f * ss);
+        dl->AddRect(iconMin, iconMax, g_ThemeAccent, 8.0f * ss, 0, 1.5f);
+    }
 
-    // Stacked tab buttons — fill available height with a small bottom margin
-    constexpr int TAB_COUNT = 3;
-    const float bottomPad = 20.0f;
-    float availH = winH - topOffset - bottomPad;
-    float btnH   = availH / (float)TAB_COUNT;
+    // Dimensi nav button — semua di-scale agar tidak overflow winH
+    const float navX  = 14.0f * ss;
+    const float navW  = sidebarW - navX * 2.0f;
+    const float navH  = 64.0f * ss;
+    const float gap   = 7.0f  * ss;
+    const float navY0 = 135.0f * ss;  // Y awal button pertama
 
-    SetCursorPos(ImVec2(0.0f, topOffset));
-    if (SidebarButton("##Aim",      play_icon_tex, g_menu.currentTab == 0, sidebarW, btnH)) g_menu.currentTab = 0;
-    if (SidebarButton("##User",     user_icon_tex, g_menu.currentTab == 1, sidebarW, btnH)) g_menu.currentTab = 1;
-    if (SidebarButton("##Settings", 0,             g_menu.currentTab == 2, sidebarW, btnH)) g_menu.currentTab = 2;
+    // Label pakai char[] bukan O() agar tidak dangling pointer
+    static const char* labels[4] = { "Visual", "Aim", "Settings", "User" };
 
+    ImGuiIO& io = GetIO();
+    // Direct hit test — bypass ImGui item system sepenuhnya sehingga
+    // clip rect dari BeginChild di DrawContentArea tidak memblokir klik.
+    // Setiap tab dicek secara manual terhadap posisi sentuhan.
+    for (int i = 0; i < 4; ++i) {
+        float btnY = navY0 + i * (navH + gap);
+        if (btnY + navH > winH + 1.0f) continue;  // skip jika overflow window
+
+        ImVec2 bMin(wp.x + navX, wp.y + btnY);
+        ImVec2 bMax(bMin.x + navW, bMin.y + navH);
+        bool hov = ImRect(bMin, bMax).Contains(io.MousePos);
+        // io.MouseClicked[0] adalah flag global — tidak bergantung pada clip rect
+        if (hov && io.MouseClicked[0]) g_menu.currentTab = i;
+        bool sel = (g_menu.currentTab == i);
+
+        // Background tombol
+        if (sel || hov) {
+            ImU32 bg = sel ? IM_COL32(28,28,27,245) : IM_COL32(24,24,23,220);
+            dl->AddRectFilled(bMin, bMax, bg, 12.0f);
+        }
+
+        ImU32 icCol = sel ? g_ThemeAccent : IM_COL32(210,210,210,225);
+        ImU32 txCol = sel ? g_ThemeText   : IM_COL32(205,205,205,230);
+        ImVec2 ctr(bMin.x + navW * 0.5f, bMin.y + navH * 0.375f);
+
+        // Ikon (sama seperti GameNavButton, di-scale dengan ss)
+        if (i == 0) { // mata / visual
+            dl->PathClear();
+            for (int j = 0; j < 28; ++j) {
+                float a = (float)j / 28.0f * (IM_PI * 2.0f);
+                dl->PathLineTo(ImVec2(ctr.x + cosf(a)*17.0f*ss, ctr.y + sinf(a)*9.0f*ss));
+            }
+            dl->PathStroke(icCol, true, 2.0f);
+            dl->AddCircleFilled(ctr, 4.5f * ss, icCol, 16);
+        } else if (i == 1) { // crosshair / aim
+            float r = 10.5f*ss, arm = 16.0f*ss, g2 = 6.0f*ss;
+            dl->AddCircle(ctr, r, icCol, 24, 2.0f);
+            dl->AddLine(ImVec2(ctr.x-arm,ctr.y), ImVec2(ctr.x-g2,ctr.y), icCol, 2.0f);
+            dl->AddLine(ImVec2(ctr.x+g2,ctr.y),  ImVec2(ctr.x+arm,ctr.y), icCol, 2.0f);
+            dl->AddLine(ImVec2(ctr.x,ctr.y-arm), ImVec2(ctr.x,ctr.y-g2), icCol, 2.0f);
+            dl->AddLine(ImVec2(ctr.x,ctr.y+g2),  ImVec2(ctr.x,ctr.y+arm), icCol, 2.0f);
+        } else if (i == 2) { // gear / misc
+            dl->AddCircle(ctr, 10.0f*ss, icCol, 20, 2.0f);
+            for (int j = 0; j < 8; ++j) {
+                float a = (float)j * IM_PI / 4.0f;
+                dl->AddLine(ImVec2(ctr.x+cosf(a)*13.0f*ss, ctr.y+sinf(a)*13.0f*ss),
+                             ImVec2(ctr.x+cosf(a)*17.0f*ss, ctr.y+sinf(a)*17.0f*ss), icCol, 2.0f);
+            }
+            dl->AddCircleFilled(ctr, 3.0f*ss, icCol, 12);
+        } else { // orang / user
+            dl->AddCircle(ImVec2(ctr.x, ctr.y - 6.0f*ss), 6.5f*ss, icCol, 16, 2.0f);
+            dl->AddBezierCubic(
+                ImVec2(ctr.x-15.0f*ss, ctr.y+13.0f*ss),
+                ImVec2(ctr.x-10.0f*ss, ctr.y+2.0f*ss),
+                ImVec2(ctr.x+10.0f*ss, ctr.y+2.0f*ss),
+                ImVec2(ctr.x+15.0f*ss, ctr.y+13.0f*ss), icCol, 2.2f, 18);
+        }
+
+        // Label teks di bawah ikon
+        ImVec2 lblSz = CalcTextSize(labels[i]);
+        dl->AddText(ImVec2(bMin.x + (navW - lblSz.x)*0.5f, bMin.y + navH*0.72f), txCol, labels[i]);
+
+        // Indikator aktif (bar kanan)
+        if (sel)
+            dl->AddRectFilled(ImVec2(bMax.x-5.0f, bMin.y+navH*0.19f),
+                              ImVec2(bMax.x,       bMax.y-navH*0.19f), g_ThemeAccent, 4.0f);
+    }
 }
 
-// Reads an IL2CPP/Unity NSString (UTF-16 internal buffer at offset 0x14, length at 0x10)
+
 static std::string ReadNSString(ptr str) {
     if (!str) return "null";
     int32_t len = F(int32_t, str + 0x10);
@@ -661,27 +736,14 @@ static std::string ReadNSString(ptr str) {
     return result;
 }
 
-// Shared vertical position for DrawToggleButton and DrawFloatingButton (they move together)
-static float g_sideBtnsY      = 0.0f;
-// Kept for linker compatibility — no longer used for animation
-static float g_toggleRotAngle = 0.0f;
-// Set true by AutoPlay when in SLOW scan state — shows CALCULATING overlay
-static bool  g_autoPlayCalculating = false;
-
-// ── svConfig ──────────────────────────────────────────────────────────────────
 static void svConfig_Save() {
     std::string path = O("/data/user/0/") + PACKAGE_NAME + O("/files/svConfig.txt");
     FILE* f = fopen(path.c_str(), O("w"));
     if (!f) return;
     fprintf(f, O("iLineThickness=%d\n"),  persistent_int[O("iLineThickness")]);
-      fprintf(f, O("iLineStyle=%d\n"),  persistent_int[O("iLineStyle")]);
-      fprintf(f, O("iMenuSizeOffset=%d\n"), persistent_int[O("iMenuSizeOffset")]);
-      fprintf(f, O("fAutoPlayPower=%.1f\n"),   persistent_float[O("fAutoPlayPower")]);
-      fprintf(f, O("fAutoPlayDelay=%.2f\n"),   persistent_float[O("fAutoPlayShotDelayMax")]);
-      fprintf(f, O("fFontScale=%.1f\n"),       persistent_float[O("fFontScale")]);
-      fprintf(f, O("bManualPower=%d\n"),       (int)persistent_bool[O("bManualPower")]);
-      fprintf(f, O("b9BallAimLock=%d\n"),      (int)persistent_bool[O("b9BallAimLock")]);
-      fclose(f);
+    fprintf(f, O("iMenuSizeOffset=%d\n"), persistent_int[O("iMenuSizeOffset")]);
+    fprintf(f, O("iTheme=%d\n"),          persistent_int[O("iTheme")]);
+    fclose(f);
 }
 static void svConfig_Load() {
     std::string path = O("/data/user/0/") + PACKAGE_NAME + O("/files/svConfig.txt");
@@ -691,35 +753,23 @@ static void svConfig_Load() {
     while (fgets(line, sizeof(line), f)) {
         int v = 0;
         if (sscanf(line, O("iLineThickness=%d"),  &v) == 1) { persistent_int[O("iLineThickness")]  = v; continue; }
-          if (sscanf(line, O("iMenuSizeOffset=%d"), &v) == 1) { persistent_int[O("iMenuSizeOffset")] = v; continue; }
-          if (sscanf(line, O("iLineStyle=%d"),      &v) == 1) { persistent_int[O("iLineStyle")]      = v; continue; } // <-- TAMBAH INI
-          float fv__; int bv__;
-          if (sscanf(line, O("fAutoPlayPower=%f"),  &fv__) == 1) { persistent_float[O("fAutoPlayPower")]        = fv__; continue; }
-          if (sscanf(line, O("fAutoPlayDelay=%f"),  &fv__) == 1) { persistent_float[O("fAutoPlayShotDelayMax")] = fv__; continue; }
-          if (sscanf(line, O("fFontScale=%f"),      &fv__) == 1) { persistent_float[O("fFontScale")]            = fv__; continue; }
-          if (sscanf(line, O("bManualPower=%d"),    &bv__) == 1) { persistent_bool[O("bManualPower")]           = (bool)bv__; continue; }
-          if (sscanf(line, O("b9BallAimLock=%d"),   &bv__) == 1) { persistent_bool[O("b9BallAimLock")]          = (bool)bv__; }
+        if (sscanf(line, O("iMenuSizeOffset=%d"), &v) == 1) { persistent_int[O("iMenuSizeOffset")] = v; continue; }
+        if (sscanf(line, O("iTheme=%d"),          &v) == 1) { persistent_int[O("iTheme")]          = v; ApplyTheme(v); }
     }
     fclose(f);
 }
 
-// ── CALCULATING overlay (shown during AutoPlay SLOW scan) ─────────────────────
 static void DrawCalculating(ImGuiIO& io) {
-    // Setăm poziția pe centrul ecranului (Width*0.5, Height*0.5)
-    // Pivotul (0.5f, 0.5f) înseamnă că mijlocul ferestrei va fi fix pe coordonatele date
     SetNextWindowPos(ImVec2(Width * 0.5f, Height * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    
-    // Auto-resize face ca fereastra să aibă dimensiunea textului automat
     PushStyleColor(ImGuiCol_WindowBg, IM_COL32(21, 21, 21, 255));
     PushStyleColor(ImGuiCol_Border, IM_COL32(220, 30, 30, 255));
     PushStyleVar(ImGuiStyleVar_WindowRounding, 18.0f);
     PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
 
     if (Begin(O("##CalcOverlay"), nullptr,
-              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | 
-              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | 
+              ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
               ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs)) {
-        
         SetWindowFontScale(1.4f);
         TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), O("CALCULATING..."));
         SetWindowFontScale(1.0f);
@@ -729,373 +779,338 @@ static void DrawCalculating(ImGuiIO& io) {
     PopStyleColor(2);
 }
 
-
-static void DrawContentArea(float winW, float winH) {
+static void DrawContentArea(float winW, float winH, float sidebarW) {
     bool need_save = false;
-    
-    ImDrawList* dl  = GetWindowDrawList();
-    ImVec2      wp  = GetWindowPos();
 
-    // ContentCh already starts below header — startY = 0
-    float startY   = 0.0f;
-    float contentW = winW;
+    ImDrawList* dl = GetWindowDrawList();
+    ImVec2 wp = GetWindowPos();
+    float contentX = sidebarW;
+    float headerH = 72.0f;
+    float pad = 24.0f;
+    float contentW = winW - sidebarW;
 
-    // Background for content area
-    dl->AddRectFilled(
-        ImVec2(wp.x, wp.y),
-        ImVec2(wp.x + contentW, wp.y + winH),
-        IM_COL32(21, 21, 21, 255), 0.0f
-    );
-    
-    static const char* tabTitles[3] = { "AIM", "USER", "SETTINGS" };
-    static const char* tabDescs[3]  = {
-        "Auto play & draw settings",
-        "Account info",
-        "Menu configuration"
-    };
+    if (g_menu.currentTab < 0 || g_menu.currentTab > 3) g_menu.currentTab = 0;
 
-    // --- HEADER TAB (VISUAL | ESP and draw settings) ---
-    const char* currentTitle = tabTitles[g_menu.currentTab];
-    const char* currentDesc  = tabDescs[g_menu.currentTab];
-    float titlePadT = 14.0f;
-    float titlePadB = 10.0f;
+    dl->AddRectFilled(wp, ImVec2(wp.x + winW, wp.y + winH), IM_COL32(7, 8, 7, 230), 16.0f);
+    dl->AddRectFilled(ImVec2(wp.x + contentX, wp.y), ImVec2(wp.x + winW, wp.y + winH),
+                      IM_COL32(14, 15, 14, 238), 16.0f, ImDrawFlags_RoundCornersRight);
+    dl->AddRect(ImVec2(wp.x + 1.0f, wp.y + 1.0f), ImVec2(wp.x + winW - 1.0f, wp.y + winH - 1.0f),
+                g_ThemeBorder, 16.0f, 0, 1.2f);
 
-    ImVec2 ts1   = CalcTextSize(currentTitle);
-    const char* sep = " | ";
-    ImVec2 tsSep = CalcTextSize(sep);
-    float totalW = ts1.x + tsSep.x + CalcTextSize(currentDesc).x;
-    float startX = wp.x + (contentW - totalW) * 0.5f;
-    float textY  = wp.y + startY + titlePadT;
-    dl->AddText(ImVec2(startX,                   textY), IM_COL32(255,255,255,255), currentTitle);
-    dl->AddText(ImVec2(startX + ts1.x,           textY), IM_COL32(90, 90,105,255),  sep);
-    dl->AddText(ImVec2(startX + ts1.x + tsSep.x, textY), IM_COL32(130,130,145,255), currentDesc);
+    // Top status bar: colored indicator dots, title/version, and close dot just like the reference overlay.
+    dl->AddCircleFilled(ImVec2(wp.x + 17.0f, wp.y + 18.0f), 6.0f, IM_COL32(246, 163, 27, 255));
+    dl->AddCircleFilled(ImVec2(wp.x + 37.0f, wp.y + 18.0f), 6.0f, IM_COL32(232, 232, 216, 255));
+    dl->AddCircleFilled(ImVec2(wp.x + 57.0f, wp.y + 18.0f), 6.0f, IM_COL32(221, 171, 58, 255));
 
-    float lineY   = startY + titlePadT + ts1.y + titlePadB;
-    dl->AddLine(
-        ImVec2(wp.x + 14.0f, wp.y + lineY),
-        ImVec2(wp.x + contentW - 14.0f, wp.y + lineY),
-        IM_COL32(60, 60, 75, 140), 1.0f
-    );
-    float headerH = lineY - startY + 8.0f;
-    SetCursorPos(ImVec2(10.0f, headerH));
+    // Drag handle: only covers content (right of sidebar) so sidebar logo stays tappable.
+    // Also stop before the close button area (last 44px).
+    SetCursorScreenPos(ImVec2(wp.x + contentX, wp.y));
+    InvisibleButton(O("##MenuDragHandle"), ImVec2(contentW - 44.0f, 40.0f));
+    if (IsItemActive() && IsMouseDragging(ImGuiMouseButton_Left)) {
+        g_menu.menuPos.x = ImClamp(g_menu.menuPos.x + GetIO().MouseDelta.x, 0.0f, ImMax(0.0f, GetIO().DisplaySize.x - winW));
+        g_menu.menuPos.y = ImClamp(g_menu.menuPos.y + GetIO().MouseDelta.y, 0.0f, ImMax(0.0f, GetIO().DisplaySize.y - winH));
+    }
 
-    // Inner scrollable area — only this child scrolls
+    {
+        // Gunakan plain char[] — O() macro returns pointer ke temporary yang langsung hancur
+        // sehingga pointer jadi dangling dan teks tidak render sama sekali.
+        char part1[32]  = "LYN8BP v3 | ARM64 | FPS ";
+        char fpsText[16];
+        snprintf(fpsText, sizeof(fpsText), "%.0f", GetIO().Framerate);
+        ImVec2 part1Sz = CalcTextSize(part1);
+        ImVec2 fpsSz   = CalcTextSize(fpsText);
+        float statusX  = wp.x + contentX + (contentW - part1Sz.x - fpsSz.x) * 0.5f;
+        dl->AddText(ImVec2(statusX,             wp.y + 11.0f), IM_COL32(245, 245, 235, 255), part1);
+        dl->AddText(ImVec2(statusX + part1Sz.x, wp.y + 11.0f), IM_COL32(45, 236, 59, 255),  fpsText);
+
+        // Baris ke-2: status game (state) + status lisensi singkat
+        char stateLine[64];
+        const char* stateStr = g_isInGame ? "In Game" : "Lobby";
+        const char* licStr   = (g_LicenseStatusCode == LSC_OK)      ? "Active"
+                             : (g_LicenseStatusCode == LSC_BANNED)   ? "Banned"
+                             : (g_LicenseStatusCode == LSC_EXPIRED)  ? "Expired"
+                             : (g_LicenseStatusCode == LSC_PENDING)  ? "Pending"
+                             :                                          "No Key";
+        snprintf(stateLine, sizeof(stateLine), "State: %s  |  Key: %s", stateStr, licStr);
+        ImVec2 stateSz = CalcTextSize(stateLine);
+        float stateX   = wp.x + contentX + (contentW - stateSz.x) * 0.5f;
+        dl->AddText(ImVec2(stateX, wp.y + 29.0f), IM_COL32(160, 160, 155, 210), stateLine);
+    }
+    // Close button — larger 36x36 hit area for easier touch
+    ImVec2 closeCenter(wp.x + winW - 22.0f, wp.y + 18.0f);
+    dl->AddCircleFilled(closeCenter, 9.0f, IM_COL32(245, 245, 232, 255));
+    SetCursorScreenPos(ImVec2(closeCenter.x - 18.0f, closeCenter.y - 18.0f));
+    if (InvisibleButton(O("##CloseMenuTopDot"), ImVec2(36.0f, 36.0f))) g_menu.isOpen = false;
+
+    SetCursorPos(ImVec2(contentX + pad, headerH));
     PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
-    BeginChild(O("##ContentArea"), ImVec2(contentW - 20.0f, winH - headerH - 8.0f), false);
-    
+    BeginChild(O("##ContentArea"), ImVec2(contentW - pad * 1.45f, winH - headerH - 24.0f), false,
+               ImGuiWindowFlags_NoScrollWithMouse);
+
+    const float rowW = ImMax(220.0f, GetContentRegionAvail().x - 24.0f);
     switch (g_menu.currentTab) {
         case 0: {
-            const MenuTheme& T1 = GetTheme();
-            ImDrawList* dl1 = GetWindowDrawList();
+            DrawSectionTitle(O("VIS"), O("VISUAL"), O("Overlay and prediction line settings"));
+            need_save |= ToggleSwitch(O("Draw Lines"), &persistent_bool[O("bESP_DrawPredictionLine")]);
+            need_save |= ToggleSwitch(O("Draw Pockets"), &persistent_bool[O("bESP_DrawPocketsShotState")]);
+            need_save |= ToggleSwitch(O("Enemy Lines"), &persistent_bool[O("bESP_DrawEnemyLines")]);
 
-            // ── helper: section header ─────────────────────────────────────
-            auto SectionHeader = [&](const char* title) {
-                Dummy(ImVec2(0, 6));
-                ImVec2 p = GetCursorScreenPos();
-                float w  = GetContentRegionAvail().x;
-                dl1->AddRectFilled(p, ImVec2(p.x + w, p.y + 26.0f),
-                    IM_COL32(30, 30, 40, 200), 6.0f);
-                dl1->AddRectFilled(p, ImVec2(p.x + 3.0f, p.y + 26.0f),
-                    T1.accent, 3.0f);
-                ImVec2 ts = CalcTextSize(title);
-                dl1->AddText(ImVec2(p.x + 12.0f, p.y + (26.0f - ts.y) * 0.5f),
-                    T1.textPrimary, title);
-                Dummy(ImVec2(0, 26.0f));
-                Dummy(ImVec2(0, 6));
-            };
-
-            // ── helper: StatusRow ──────────────────────────────────────────
-            auto StatusRow = [&](const char* key, const char* val, ImU32 valCol) {
-                float rowH2 = 36.0f;
-                ImVec2 p2   = GetCursorScreenPos();
-                float  w2   = GetContentRegionAvail().x;
-                dl1->AddText(p2, T1.textSecondary, key);
-                ImVec2 ks    = CalcTextSize(key);
-                float colonX = p2.x + ks.x + 6.0f;
-                dl1->AddText(ImVec2(colonX, p2.y), T1.textSecondary, ":");
-                dl1->AddText(ImVec2(colonX + 14.0f, p2.y), valCol, val);
-                Dummy(ImVec2(w2, rowH2));
-            };
-
-            // ═══════════════════════════════════════════════════
-            // SECTION: Draw  (paling atas)
-            // ═══════════════════════════════════════════════════
-            SectionHeader("Draw");
-            need_save |= ToggleSwitch(O("Draw Lines"),       &persistent_bool[O("bESP_DrawPredictionLine")]);
-            need_save |= ToggleSwitch(O("Draw Pockets"),     &persistent_bool[O("bESP_DrawPocketsShotState")]);
-            need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
-            if (persistent_int["iLineStyle"] < 0 || persistent_int["iLineStyle"] > 1) {
-                persistent_int["iLineStyle"] = 0;
-            }
-            
-            const char* items = "SOLID\0DOTTED\0";
-            if (CmCombo("Line Style", "Choose prediction line style", &persistent_int["iLineStyle"], items)) {
-                need_save = true;
-            }
-
-            // ═══════════════════════════════════════════════════
-            // ═══════════════════════════════════════════════════
-            // SECTION: Auto Play
-            // ═══════════════════════════════════════════════════
-            Dummy(ImVec2(0, 8));
-            SectionHeader("Auto Play");
-            need_save |= ToggleSwitch(O("Auto Play"), &persistent_bool[O("bAutoPlay")]);
-
-            Dummy(ImVec2(0, 4));
+            Dummy(ImVec2(0, 10));
+            TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Line Thickness"));
+            Dummy(ImVec2(0, 7));
+            if (persistent_int[O("iLineThickness")] < 1) persistent_int[O("iLineThickness")] = 4;
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+            PushStyleVar(ImGuiStyleVar_GrabRounding, 8.0f);
+            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.10f, 0.10f, 0.09f, 1.0f));
+            PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.86f, 0.61f, 0.12f, 1.0f));
+            PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(1.0f, 0.74f, 0.20f, 1.0f));
+            SetNextItemWidth(rowW);
+            need_save |= SliderInt(O("##lineThick"), &persistent_int[O("iLineThickness")], 1, 10, "%d");
+            PopStyleColor(3);
+            PopStyleVar(2);
             break;
         }
 
         case 1: {
-            // ── helpers ──────────────────────────────────────────────────────
-            auto DrawSectionHeader = [&](const char* title) {
-                Dummy(ImVec2(0, 14));
-                float avail = GetContentRegionAvail().x;
-                ImVec2 p    = GetCursorScreenPos();
-                float  fs   = GImGui->FontSize;
-                ImVec2 ts   = CalcTextSize(title);
-                float  lineY = p.y + fs * 0.5f;
-                float  gap   = 8.0f;
-                float  lineW = (avail - ts.x - gap * 2.0f) * 0.5f;
-                ImDrawList* dl2 = GetWindowDrawList();
-                dl2->AddLine(ImVec2(p.x,                      lineY), ImVec2(p.x + lineW,                      lineY), IM_COL32(60,60,75,160), 1.0f);
-                dl2->AddLine(ImVec2(p.x + lineW + gap + ts.x + gap, lineY), ImVec2(p.x + avail, lineY), IM_COL32(60,60,75,160), 1.0f);
-                SetCursorPosX(GetCursorPosX() + lineW + gap);
-                TextColored(ImVec4(0.55f, 0.55f, 0.65f, 1.0f), "%s", title);
-                Dummy(ImVec2(0, 6));
-            };
+            DrawSectionTitle(O("AIM"), O("AUTOMATION"), O("Auto Play and aiming settings"));
+            TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Automation"));
+            Dummy(ImVec2(0, 5));
+            need_save |= ToggleSwitch(O("Enable AutoPlay"), &persistent_bool[O("bAutoPlay")]);
+            need_save |= ToggleSwitch(O("Enable AutoQueue"), &persistent_bool[O("bAutoQueue")]);
 
-            auto DrawInfoRow = [&](const char* key, const char* val) {
-                TextColored(ImVec4(0.55f, 0.55f, 0.65f, 1.0f), "%s", key);
-                SameLine();
-                TextColored(ImVec4(0.90f, 0.90f, 0.95f, 1.0f), "%s", val);
-                Dummy(ImVec2(0, 4));
-            };
-
-            // ── Device Info ───────────────────────────────────────────────────
-            {
-                static char s_manufacturer[PROP_VALUE_MAX] = {};
-                static char s_model[PROP_VALUE_MAX] = {};
-                static char s_abi[PROP_VALUE_MAX] = {};
-                static char s_android[PROP_VALUE_MAX] = {};
-                static bool s_props_loaded = false;
-                
-                if (!s_props_loaded) {
-                    __system_property_get("ro.product.manufacturer", s_manufacturer);
-                    __system_property_get("ro.product.model", s_model);
-                    __system_property_get("ro.product.cpu.abi", s_abi);
-                    __system_property_get("ro.build.version.release", s_android);
-                    s_props_loaded = true;}
-                    
-                int64_t now_ts = (int64_t)time(nullptr);
-                int64_t diff = (g_ExpiryTimestamp > 0) ? (g_ExpiryTimestamp - now_ts) : 0;
-                char expireBuf[64];
-                if (g_ExpiryTimestamp == 0) {
-                    snprintf(expireBuf, sizeof(expireBuf), "%s", O("Lifetime"));
-                } else if (diff > 0) {
-                    int days  = (int)(diff / 86400);
-                    int hours = (int)((diff % 86400) / 3600);
-                    int mins  = (int)((diff % 3600)  / 60);
-                    int secs  = (int)(diff % 60);
-                    if (days > 0)
-                        snprintf(expireBuf, sizeof(expireBuf), "%dd %dh %dm %ds", days, hours, mins, secs);
-                    else if (hours > 0)
-                        snprintf(expireBuf, sizeof(expireBuf), "%dh %dm %ds", hours, mins, secs);
-                    else
-                        snprintf(expireBuf, sizeof(expireBuf), "%dm %ds", mins, secs);
-                } else {
-                    snprintf(expireBuf, sizeof(expireBuf), "%s", O("EXPIRED"));}
-                    
-                DrawInfoRow(O("ManuFacturer: "), s_manufacturer);
-                DrawInfoRow(O("Model: "), s_model);
-                DrawInfoRow(O("Abi: "), s_abi);
-                DrawInfoRow(O("Android: "), s_android);
-                DrawInfoRow(O("Key: "), persistent_string["key"].c_str());
-                {
-                      TextColored(ImVec4(0.55f,0.55f,0.65f,1.0f), "%s", O("Expire: "));
-                      SameLine();
-                      int64_t secsLeft = (g_ExpiryTimestamp > 0) ? (g_ExpiryTimestamp - (int64_t)time(nullptr)) : 1;
-                      ImVec4 expColor = (g_ExpiryTimestamp == 0) ? ImVec4(0.40f,0.90f,0.55f,1.0f) :
-                                        (secsLeft <= 0)           ? ImVec4(1.00f,0.30f,0.30f,1.0f) :
-                                        (secsLeft < 86400)        ? ImVec4(1.00f,0.40f,0.40f,1.0f) :
-                                        (secsLeft < 7*86400)      ? ImVec4(1.00f,0.72f,0.18f,1.0f) :
-                                                                    ImVec4(0.35f,0.92f,0.48f,1.0f);
-                      TextColored(expColor, "%s", expireBuf);
-                  }}
-
-                // ── Sync countdown (below Expired) ──────────────────────────
-                {
-                    static char s_syncBuf[48];
-                    if (g_StatusChecking) {
-                        snprintf(s_syncBuf, sizeof(s_syncBuf), "Syncing...");
-                    } else if (g_lastSyncTime > 0) {
-                        int64_t ago = (int64_t)time(nullptr) - (int64_t)g_lastSyncTime;
-                        snprintf(s_syncBuf, sizeof(s_syncBuf), "Synced %ds ago", (int)ago);
-                    } else {
-                        snprintf(s_syncBuf, sizeof(s_syncBuf), "Never synced");
-                    }
-                    TextColored(ImVec4(0.45f,0.45f,0.55f,1.0f), "%s", s_syncBuf);
-                    Dummy(ImVec2(0, 8));
-                }
-
-                // ── Change Key ──────────────────────────────────────────
-                DrawSectionHeader(O("Update Key"));
-                {
-                    static char  s_newKey[128]  = {};
-                    static bool  s_keyApplying  = false;
-                    static std::string s_keyMsg = "";
-
-                    float avW = GetContentRegionAvail().x;
-                    SetNextItemWidth(avW - 165.0f);
-                    PushStyleColor(ImGuiCol_FrameBg, IM_COL32(22, 28, 44, 220));
-                    InputText(O("##ChgKey"), s_newKey, sizeof(s_newKey));
-                    PopStyleColor();
-                    SameLine(0, 6);
-
-                    // Paste button
-                    if (Button(O("Paste"), ImVec2(68.0f, 0))) {
-                        JNIEnv* penv = nullptr;
-                        jint jr = VM->GetEnv((void**)&penv, JNI_VERSION_1_6);
-                        if (jr == JNI_EDETACHED) VM->AttachCurrentThread(&penv, nullptr);
-                        if (penv) {
-                            std::string clip = getClipboard(penv);
-                            if (!clip.empty()) {
-                                strncpy(s_newKey, clip.c_str(), sizeof(s_newKey)-1);
-                                s_newKey[sizeof(s_newKey)-1] = '\0';
-                            }
-                        }
-                    }
-                    SameLine(0, 6);
-
-                    bool canApply = s_newKey[0] != '\0' && !s_keyApplying && !is_logging_in;
-                    if (!canApply) BeginDisabled();
-                    if (Button(O("Apply"), ImVec2(80.0f, 0))) {
-                        s_keyMsg = "";
-                        s_keyApplying = true;
-                        std::string nk(s_newKey);
-                        std::string hw = persistent_string["hwid"];
-                        std::thread([nk, hw]() {
-                            bool ok = Login(hw, nk);
-                            if (ok) { s_keyMsg = OO("Key updated!").str(); RefreshLicenseStatus(); }
-                            else    { s_keyMsg = ERROR_MESSAGE.empty() ? OO("Invalid key").str() : ERROR_MESSAGE; }
-                            s_keyApplying = false;
-                        }).detach();
-                    }
-                    if (!canApply) EndDisabled();
-
-                    if (s_keyApplying || is_logging_in)
-                        TextColored(ImVec4(0.9f,0.75f,0.2f,1.0f), O("Verifying..."));
-                    else if (!s_keyMsg.empty()) {
-                        bool ok2 = (s_keyMsg.find("updated") != std::string::npos);
-                        TextColored(ok2 ? ImVec4(0.35f,0.9f,0.5f,1.0f) : ImVec4(1.0f,0.35f,0.35f,1.0f),
-                                    "%s", s_keyMsg.c_str());
-                    }
-                }
-                Dummy(ImVec2(0, 8));
-
+            Dummy(ImVec2(0, 14));
+            Separator();
+            Dummy(ImVec2(0, 8));
+            TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Live Status"));
+            TextWrappedColored(ImVec4(0.95f, 0.78f, 0.31f, 1.0f), O("State        : %s"), AutoPlay::bAutoPlaying ? O("Running") : O("Idle"));
+            TextWrappedColored(ImVec4(0.95f, 0.78f, 0.31f, 1.0f), O("Speed        : %s"), AutoPlay::bAutoPlaying ? O("Fast") : O("Idle"));
             break;
         }
 
         case 2: {
-            const MenuTheme& TT = GetTheme();
-            auto accentF = ImGui::ColorConvertU32ToFloat4(TT.accent);
+            DrawSectionTitle(O("SET"), O("SETTINGS"), O("Appearance, menu, and config"));
 
-            // ── Theme Picker ─────────────────────────────────────────────
-            Dummy(ImVec2(0, 10));
-            TextColored(ImVec4(0.62f, 0.62f, 0.70f, 1.0f), O("Theme"));
+            // ── THEME COLOR ──────────────────────────────────────────────────
+            TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Theme Color"));
             Dummy(ImVec2(0, 8));
             {
-                struct ThemeOpt { const char* name; ImU32 preview; };
-                static const ThemeOpt opts[3] = {
-                    { "Dark Red",   IM_COL32(200,30,30,255)  },
-                    { "Dark Glass", IM_COL32(60,140,220,255) },
-                    { "Dark Neon",  IM_COL32(0,220,180,255)  },
+                struct ThemeInfo { const char* name; ImVec4 swatch; };
+                static const ThemeInfo themes[] = {
+                    { "Gold",   ImVec4(0.906f,0.671f,0.165f,1.0f) },
+                    { "Red",    ImVec4(0.863f,0.216f,0.216f,1.0f) },
+                    { "Cyan",   ImVec4(0.098f,0.843f,0.765f,1.0f) },
+                    { "Purple", ImVec4(0.608f,0.294f,0.863f,1.0f) },
+                    { "Green",  ImVec4(0.176f,0.765f,0.314f,1.0f) },
+                    { "Blue",   ImVec4(0.196f,0.510f,0.902f,1.0f) },
                 };
-                int& th = persistent_int["iTheme"];
-                if (th < 0 || th > 2) th = 0;
-                float avail = GetContentRegionAvail().x;
-                float gap   = 8.0f;
-                float bW    = (avail - gap * 2.0f) / 3.0f;
-                float bH    = 46.0f;
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-                for (int i = 0; i < 3; i++) {
-                    if (i > 0) SameLine(0, gap);
-                    bool isSel = (th == i);
-                    ImVec4 bg4 = ImGui::ColorConvertU32ToFloat4(IM_COL32(28,28,36,255));
-                    ImVec4 pr4 = ImGui::ColorConvertU32ToFloat4(opts[i].preview);
-                    if (isSel) bg4 = ImVec4(bg4.x+0.06f, bg4.y+0.06f, bg4.z+0.06f, 1.0f);
-                    PushStyleColor(ImGuiCol_Button,        bg4);
-                    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(bg4.x+0.05f,bg4.y+0.05f,bg4.z+0.05f,1.f));
-                    PushStyleColor(ImGuiCol_ButtonActive,  bg4);
-                    if (Button(opts[i].name, ImVec2(bW, bH))) { th = i; need_save = true; }
-                    if (isSel) {
-                        ImVec2 p = GetItemRectMin(), q = GetItemRectMax();
-                        GetWindowDrawList()->AddRect(p, q, opts[i].preview, 10.0f, 0, 2.0f);
-                        // colour dot
-                        GetWindowDrawList()->AddCircleFilled(ImVec2(p.x+12,p.y+bH*0.5f), 5.0f, opts[i].preview);
+                int& iTheme = persistent_int[O("iTheme")];
+                const int numThemes = 6;
+                const float swatchSz = 36.0f, swatchGap = 10.0f;
+                float startX = GetCursorPosX();
+                for (int ti = 0; ti < numThemes; ti++) {
+                    bool isSel = (iTheme == ti);
+                    PushID(ti + 100);
+                    SetCursorPosX(startX + ti * (swatchSz + swatchGap));
+                    PushStyleColor(ImGuiCol_Button,        themes[ti].swatch);
+                    PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(
+                        ImMin(themes[ti].swatch.x*1.2f,1.0f),
+                        ImMin(themes[ti].swatch.y*1.2f,1.0f),
+                        ImMin(themes[ti].swatch.z*1.2f,1.0f), 1.0f));
+                    PushStyleColor(ImGuiCol_ButtonActive,  themes[ti].swatch);
+                    PushStyleVar(ImGuiStyleVar_FrameRounding,   isSel ? 14.0f : 8.0f);
+                    PushStyleVar(ImGuiStyleVar_FrameBorderSize, isSel ? 2.5f  : 0.0f);
+                    PushStyleColor(ImGuiCol_Border, ImVec4(1,1,1,1));
+                    if (Button(O("##swt"), ImVec2(swatchSz, swatchSz))) {
+                        iTheme = ti; ApplyTheme(iTheme); need_save = true;
                     }
-                    PopStyleColor(3);
+                    PopStyleColor(4);
+                    PopStyleVar(2);
+                    if (IsItemHovered()) SetTooltip("%s", themes[ti].name);
+                    PopID();
+                    if (ti < numThemes - 1) SameLine();
                 }
-                PopStyleVar();
+                Dummy(ImVec2(0, 4));
+                TextWrappedColored(ImVec4(0.75f,0.75f,0.75f,1.0f), O("Active: %s"),
+                    (iTheme >= 0 && iTheme < numThemes) ? themes[iTheme].name : "Gold");
             }
 
-            // ── Line Thickness ───────────────────────────────────────────
-            Dummy(ImVec2(0, 18));
-            TextColored(ImVec4(0.62f, 0.62f, 0.70f, 1.0f), O("Settings"));
-            Dummy(ImVec2(0, 8));
-            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Line Thickness"));
-            Dummy(ImVec2(0, 6));
-            {
-                if (persistent_int[O("iLineThickness")] < 1) persistent_int[O("iLineThickness")] = 4;
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-                PushStyleVar(ImGuiStyleVar_GrabRounding,  10.0f);
-                PushStyleColor(ImGuiCol_FrameBg,          ImVec4(0.12f,0.12f,0.15f,1.0f));
-                PushStyleColor(ImGuiCol_SliderGrab,       accentF);
-                PushStyleColor(ImGuiCol_SliderGrabActive, accentF);
-                SetNextItemWidth(GetContentRegionAvail().x);
-                need_save |= SliderInt(O("##lineThick"), &persistent_int[O("iLineThickness")], 1, 10, "%d");
-                PopStyleColor(3); PopStyleVar(2);
-            }
-
-            // ── Menu Size ─────────────────────────────────────────────────
             Dummy(ImVec2(0, 14));
-            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Menu Size"));
-            Dummy(ImVec2(0, 6));
+            Separator();
+            Dummy(ImVec2(0, 8));
+
+            // ── ANIMASI EFEK ─────────────────────────────────────────────────
+            TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Animasi Efek"));
+            Dummy(ImVec2(0, 5));
+            need_save |= ToggleSwitch(O("Shoot Animation"), &persistent_bool[O("bESP_ShootAnim")]);
+            need_save |= ToggleSwitch(O("Rolling Animation"), &persistent_bool[O("bESP_RollingAnim")]);
+
+            Dummy(ImVec2(0, 14));
+            Separator();
+            Dummy(ImVec2(0, 8));
+
+            // ── MENU SCALE ───────────────────────────────────────────────────
+            TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Menu Scale"));
+            Dummy(ImVec2(0, 7));
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+            PushStyleVar(ImGuiStyleVar_GrabRounding, 8.0f);
+            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.10f, 0.10f, 0.09f, 1.0f));
+            PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0.86f, 0.61f, 0.12f, 1.0f));
+            PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(1.0f, 0.74f, 0.20f, 1.0f));
+            SetNextItemWidth(rowW);
             {
                 int& menuSz = persistent_int[O("iMenuSizeOffset")];
-                if (menuSz <= 0) menuSz = 15;
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-                PushStyleVar(ImGuiStyleVar_GrabRounding,  10.0f);
-                PushStyleColor(ImGuiCol_FrameBg,          ImVec4(0.12f,0.12f,0.15f,1.0f));
-                PushStyleColor(ImGuiCol_SliderGrab,       accentF);
-                PushStyleColor(ImGuiCol_SliderGrabActive, accentF);
-                SetNextItemWidth(GetContentRegionAvail().x);
-                static char s_menuFmt[8];
-                snprintf(s_menuFmt, sizeof(s_menuFmt), "%d", menuSz);
-                need_save |= SliderInt(O("##menuSize"), &menuSz, 0, 20, s_menuFmt);
-                PopStyleColor(3); PopStyleVar(2);
+                need_save |= SliderInt(O("##menuSize"), &menuSz, -10, 10, menuSz == 0 ? O("Normal") : "%d");
+            }
+            PopStyleColor(3);
+            PopStyleVar(2);
+
+            Dummy(ImVec2(0, 18));
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+            PushStyleColor(ImGuiCol_Button, ImVec4(0.70f, 0.48f, 0.10f, 1.0f));
+            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.90f, 0.64f, 0.16f, 1.0f));
+            PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.54f, 0.36f, 0.07f, 1.0f));
+            if (Button(O("Save Config"), ImVec2(rowW, 52.0f))) svConfig_Save();
+            PopStyleColor(3);
+            PopStyleVar();
+            break;
+        }
+
+        case 3: {
+            DrawSectionTitle(O("USR"), O("USER"), O("Device info, license, and status"));
+
+            // ── DEVICE CARD ──────────────────────────────────────────────────
+            {
+                std::string manufacturer = AndroidProperty(O("ro.product.manufacturer"));
+                std::string model        = AndroidProperty(O("ro.product.model"));
+                std::string androidVer   = AndroidProperty(O("ro.build.version.release"));
+                char realtime[32];
+                FormatRealtime(realtime, sizeof(realtime));
+
+                ImVec2 cPos = GetCursorScreenPos();
+                const float cH = 82.0f;
+                ImDrawList* cdl = GetWindowDrawList();
+                cdl->AddRectFilled(cPos, ImVec2(cPos.x+rowW, cPos.y+cH), IM_COL32(18,19,17,220), 10.0f);
+                cdl->AddRect(cPos, ImVec2(cPos.x+rowW, cPos.y+cH), g_ThemeBorder, 10.0f, 0, 1.0f);
+                cdl->AddText(ImVec2(cPos.x+14, cPos.y+13), g_ThemeAccent, manufacturer.c_str());
+                cdl->AddText(ImVec2(cPos.x+14, cPos.y+31), IM_COL32(220,215,200,255), model.c_str());
+                char aInfo[80];
+                snprintf(aInfo, sizeof(aInfo), "Android %s  |  %s", androidVer.c_str(), realtime);
+                cdl->AddText(ImVec2(cPos.x+14, cPos.y+55), IM_COL32(125,125,120,215), aInfo);
+                Dummy(ImVec2(rowW, cH));
             }
 
-              // ── Save Config ───────────────────────────────────────────────
-              Dummy(ImVec2(0, 18));
+            Dummy(ImVec2(0, 10));
+
+            // ── LICENSE CARD ─────────────────────────────────────────────────
             {
-                ImVec4 ab = accentF;
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
-                PushStyleColor(ImGuiCol_Button,        ImVec4(ab.x*0.55f,ab.y*0.55f,ab.z*0.55f,1.f));
-                PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ab.x*0.75f,ab.y*0.75f,ab.z*0.75f,1.f));
-                PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(ab.x*0.40f,ab.y*0.40f,ab.z*0.40f,1.f));
-                if (Button(O("Save Config"), ImVec2(GetContentRegionAvail().x, 52.0f)))
-                    svConfig_Save();
-                PopStyleColor(3); PopStyleVar();
+                const char* statusStr = "Unknown";
+                ImU32 statusCol = IM_COL32(150,150,145,255);
+                switch (g_LicenseStatusCode) {
+                    case LSC_OK:          statusStr="Active";   statusCol=IM_COL32(50,230,100,255);  break;
+                    case LSC_BANNED:      statusStr="Banned";   statusCol=IM_COL32(255,80,80,255);   break;
+                    case LSC_EXPIRED:     statusStr="Expired";  statusCol=IM_COL32(255,155,25,255);  break;
+                    case LSC_VERSION_OLD: statusStr="Old Ver";  statusCol=IM_COL32(130,160,255,255); break;
+                    case LSC_PENDING:     statusStr="Pending";  statusCol=IM_COL32(230,215,50,255);  break;
+                }
+                bool isLifetime = (g_ExpTime.empty() || g_ExpTime == O("N/A") || g_ExpTime == O("Lifetime"));
+
+                const std::string& rawKey = persistent_string[O("key")];
+                std::string masked = rawKey.empty() ? "(none)" :
+                    (rawKey.size() > 8 ? rawKey.substr(0,4) + "****" + rawKey.substr(rawKey.size()-4) : rawKey);
+                const std::string& hwid = persistent_string[O("hwid")];
+                std::string shortHwid   = hwid.empty() ? "(none)" :
+                    (hwid.size() > 12 ? hwid.substr(0,6) + "..." + hwid.substr(hwid.size()-4) : hwid);
+
+                // cH diperbesar agar setiap baris punya ruang cukup di layar HD
+                const float cH = isLifetime ? 112.0f : 138.0f;
+                ImVec2 cPos = GetCursorScreenPos();
+                ImDrawList* cdl = GetWindowDrawList();
+                cdl->AddRectFilled(cPos, ImVec2(cPos.x+rowW, cPos.y+cH), IM_COL32(17,18,16,220), 10.0f);
+                cdl->AddRect(cPos, ImVec2(cPos.x+rowW, cPos.y+cH), g_ThemeBorder, 10.0f, 0, 1.0f);
+
+                // ── Baris 1: Status badge (kanan atas, baris tersendiri) ────────
+                float bW = CalcTextSize(statusStr).x + 20.0f;
+                ImVec2 bMin(cPos.x+rowW-bW-10, cPos.y+10);
+                ImVec2 bMax(cPos.x+rowW-10,    cPos.y+28);
+                cdl->AddRectFilled(bMin, bMax, IM_COL32(20,20,18,200), 7.0f);
+                cdl->AddRect(bMin, bMax, statusCol, 7.0f, 0, 1.5f);
+                cdl->AddText(ImVec2(bMin.x+10, bMin.y+5), statusCol, statusStr);
+
+                // ── Baris 2: Key (jarak cukup di bawah badge) ───────────────────
+                cdl->AddText(ImVec2(cPos.x+14, cPos.y+38), IM_COL32(155,150,140,220), "Key");
+                cdl->AddText(ImVec2(cPos.x+52, cPos.y+38), g_ThemeAccent, masked.c_str());
+
+                // ── Baris 3: Expiry ──────────────────────────────────────────────
+                if (isLifetime) {
+                    cdl->AddText(ImVec2(cPos.x+14, cPos.y+62), IM_COL32(155,150,140,220), "Expires");
+                    cdl->AddText(ImVec2(cPos.x+82, cPos.y+62), IM_COL32(50,220,100,255), "Lifetime");
+                } else {
+                    char expBuf[64];
+                    snprintf(expBuf, sizeof(expBuf), "%s", g_ExpTime.c_str());
+                    cdl->AddText(ImVec2(cPos.x+14, cPos.y+62), IM_COL32(155,150,140,220), "Expires");
+                    cdl->AddText(ImVec2(cPos.x+82, cPos.y+62), IM_COL32(200,195,180,255), expBuf);
+                    // ── Baris 4: Countdown ────────────────────────────────────────
+                    if (g_ExpiryTimestamp > 0) {
+                        int64_t secsLeft = (int64_t)g_ExpiryTimestamp - (int64_t)time(nullptr);
+                        char remBuf[48];
+                        if (secsLeft > 0) {
+                            snprintf(remBuf, sizeof(remBuf), "%dd %dh %02dm %02ds",
+                                     (int)(secsLeft/86400),
+                                     (int)((secsLeft%86400)/3600),
+                                     (int)((secsLeft%3600)/60),
+                                     (int)(secsLeft%60));
+                            cdl->AddText(ImVec2(cPos.x+14, cPos.y+88), IM_COL32(50,215,95,255), remBuf);
+                        } else {
+                            cdl->AddText(ImVec2(cPos.x+14, cPos.y+88), IM_COL32(255,75,75,255), "Expired!");
+                        }
+                    }
+                }
+
+                // ── Baris 5: HWID (paling bawah) ────────────────────────────────
+                char hwidLine[64];
+                snprintf(hwidLine, sizeof(hwidLine), "HWID  %s", shortHwid.c_str());
+                cdl->AddText(ImVec2(cPos.x+14, cPos.y+cH-18), IM_COL32(100,100,95,195), hwidLine);
+
+                Dummy(ImVec2(rowW, cH));
             }
+
+            Dummy(ImVec2(0, 10));
+
+            // ── FEATURES ─────────────────────────────────────────────────────
+            if (g_Features.empty()) {
+                TextColored(ImVec4(0.3f,0.9f,0.5f,1.0f), "  + All Access (Semua Fitur Aktif)");
+            } else {
+                TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Features"));
+                Dummy(ImVec2(0, 6));
+                PushStyleColor(ImGuiCol_TableBorderLight, IM_COL32(80,65,30,120));
+                if (BeginTable("##featTable", 2,
+                               ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame,
+                               ImVec2(rowW, 0))) {
+                    for (const auto& feat : g_Features) {
+                        TableNextColumn();
+                        Dummy(ImVec2(0, 2));
+                        TextColored(ImVec4(0.3f, 0.9f, 0.5f, 1.0f), "+ %s", feat.c_str());
+                        Dummy(ImVec2(0, 2));
+                    }
+                    EndTable();
+                }
+                PopStyleColor();
+            }
+
+            Dummy(ImVec2(0, 10));
+            Separator();
+            Dummy(ImVec2(0, 6));
+            TextWrappedColored(ImVec4(0.35f, 1.0f, 0.23f, 1.0f), O("LYN8BP  —  lyn8bp.vercel.app"));
             break;
         }
     }
-    
+
     if (need_save) save_persistence();
-    
+
     EndChild();
     PopStyleColor();
 }
+
 
 INLINE void DrawMenu(ImGuiIO& io) {
     if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
@@ -1105,7 +1120,6 @@ INLINE void DrawMenu(ImGuiIO& io) {
             jump_buffer_active = 0;
         }
 
-        float targetAlpha = g_menu.isOpen ? 1.0f : 0.0f;
         if (g_menu.isOpen) {
             g_menu.menuAlpha += (1.0f - g_menu.menuAlpha) * io.DeltaTime * 12.0f;
         } else {
@@ -1113,26 +1127,24 @@ INLINE void DrawMenu(ImGuiIO& io) {
         }
 
         if (g_menu.menuAlpha > 0.01f) {
-            // First-run defaults
-            static bool s_menuSzInited = false;
-            if (!s_menuSzInited) {
-                s_menuSzInited = true;
-                if (persistent_int[O("iMenuSizeOffset")] <= 0)
-                    persistent_int[O("iMenuSizeOffset")] = 15;  // default size 15
-                if (persistent_int["iTheme"] <= 0)
-                    persistent_int["iTheme"] = 2;               // default Dark Neon
-            }
+            ApplyTheme(persistent_int[O("iTheme")]);
             float sizeScale = 1.0f + (float)persistent_int[O("iMenuSizeOffset")] * 0.03f;
             if (sizeScale < 0.3f) sizeScale = 0.3f;
-            float winW    = g_menu.sidebarWidth * sizeScale;
-            float _hdrH   = (40.0f + 20.0f) * sizeScale; // header-only height
-            float winH    = g_menu.isMinimized ? _hdrH : 420.0f * sizeScale;
-            float sbW  = 115.0f * sizeScale;
+            float winW = g_menu.sidebarWidth * sizeScale;
+            float winH = 470.0f * sizeScale;
+
+            if (!g_menu.menuPosInitialized) {
+                g_menu.menuPos = ImVec2((Width - winW) * 0.5f, (Height - winH) * 0.5f);
+                g_menu.menuPosInitialized = true;
+            }
+            g_menu.menuPos.x = ImClamp(g_menu.menuPos.x, 0.0f, ImMax(0.0f, io.DisplaySize.x - winW));
+            g_menu.menuPos.y = ImClamp(g_menu.menuPos.y, 0.0f, ImMax(0.0f, io.DisplaySize.y - winH));
+            winH = 450.0f * sizeScale;
 
             SetNextWindowSize(ImVec2(winW, winH), ImGuiCond_Always);
-            SetNextWindowPos(ImVec2(20.0f, 80.0f), ImGuiCond_FirstUseEver);
+            SetNextWindowPos(g_menu.menuPos, ImGuiCond_Always);
 
-            PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+            PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.13f, 0.f));
             PushStyleVar(ImGuiStyleVar_WindowRounding, 16.0f);
             PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
             PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
@@ -1143,110 +1155,13 @@ INLINE void DrawMenu(ImGuiIO& io) {
                                         ImGuiWindowFlags_NoResize;
 
             if (Begin(O("##MainMenu"), &g_menu.isOpen, winFlags)) {
-                static GLuint lyn4xp_menu_tex = LoadTextureFromMemory(lyn4xp_logo_png, lyn4xp_logo_png_len);
-
-                ImDrawList* bg = GetWindowDrawList();
-                ImVec2 wp0 = GetWindowPos();
-                const MenuTheme& T = GetTheme();
-                bg->AddRectFilled(wp0, ImVec2(wp0.x + winW, wp0.y + winH), T.bgMain, 16.0f);
-
-                // ── Header bar background ─────────────────────────────────
-                float logoSz  = 40.0f * sizeScale;
-                float logoPad = 10.0f * sizeScale;
-                float headerH = logoSz + logoPad * 2.0f;
-                bg->AddRectFilled(wp0, ImVec2(wp0.x + winW, wp0.y + headerH),
-                    T.bgHeader, 16.0f, ImDrawFlags_RoundCornersTop);
-                bg->AddLine(ImVec2(wp0.x, wp0.y + headerH),
-                    ImVec2(wp0.x + winW, wp0.y + headerH), T.separator, 1.0f);
-
-                // ── LYN4XP logo top-LEFT ──────────────────────────────────
-                ImVec2 logoMin = ImVec2(wp0.x + logoPad, wp0.y + logoPad);
-                ImVec2 logoMax = ImVec2(logoMin.x + logoSz, logoMin.y + logoSz);
-                if (lyn4xp_menu_tex)
-                    bg->AddImageRounded((void*)(intptr_t)lyn4xp_menu_tex, logoMin, logoMax,
-                        ImVec2(0,0), ImVec2(1,1), IM_COL32(255,255,255,240), logoSz * 0.25f);
-
-                // ── Header info text (kanan logo) ─────────────────────────
-                {
-                    static const char* s_prefix = "CM | 8BP 56.26 V : 1.0 | x64 | FPS ";
-                    static char s_fps[16];
-                    snprintf(s_fps, sizeof(s_fps), "%.0f", io.Framerate);
-
-                    ImVec2 prefixSz = CalcTextSize(s_prefix);
-                    float  infoX    = logoMax.x + 10.0f * sizeScale;
-                    float  infoY    = wp0.y + (headerH - prefixSz.y) * 0.5f;
-                    float  xBtnLeft = wp0.x + winW - 50.0f * sizeScale;
-
-                    if (infoX + prefixSz.x + CalcTextSize(s_fps).x < xBtnLeft) {
-                        // Static prefix — dim white
-                        bg->AddText(ImVec2(infoX, infoY),
-                            IM_COL32(160, 165, 180, 200), s_prefix);
-                        // FPS number — green neon
-                        bg->AddText(ImVec2(infoX + prefixSz.x, infoY),
-                            IM_COL32(0, 255, 140, 255), s_fps);
-                    }
-                }
-
-                // ── Buttons: X close and minimize — hidden when minimized ─────
-                float xBtnSz = 32.0f * sizeScale;
-                float xPad   = logoPad;
-                ImVec2 xCtr  = ImVec2(wp0.x + winW - xPad - xBtnSz * 0.5f,
-                                      wp0.y + logoPad + logoSz * 0.5f);
-
-                if (!g_menu.isMinimized) {
-                    // X close button
-                    float mxD = io.MousePos.x - xCtr.x;
-                    float myD = io.MousePos.y - xCtr.y;
-                    bool  xHov = (mxD*mxD + myD*myD) <= (xBtnSz*0.5f)*(xBtnSz*0.5f);
-                    if (xHov && io.MouseClicked[0]) g_menu.isOpen = false;
-                    bg->AddCircleFilled(xCtr, xBtnSz * 0.5f, xHov ? T.xBtnHov : T.xBtn);
-                    float xH = xBtnSz * 0.26f;
-                    bg->AddLine(ImVec2(xCtr.x-xH,xCtr.y-xH), ImVec2(xCtr.x+xH,xCtr.y+xH),
-                        IM_COL32(255,255,255,255), 2.5f);
-                    bg->AddLine(ImVec2(xCtr.x+xH,xCtr.y-xH), ImVec2(xCtr.x-xH,xCtr.y+xH),
-                        IM_COL32(255,255,255,255), 2.5f);
-
-                    // Minimize button
-                    ImVec2 minCtr(xCtr.x - xBtnSz - xPad * 0.8f, xCtr.y);
-                    float dx = io.MousePos.x - minCtr.x, dy = io.MousePos.y - minCtr.y;
-                    bool minHov = (dx*dx + dy*dy) <= (xBtnSz*0.5f)*(xBtnSz*0.5f);
-                    if (minHov && io.MouseClicked[0]) g_menu.isMinimized = true;
-                    bg->AddCircleFilled(minCtr, xBtnSz * 0.5f,
-                        minHov ? IM_COL32(70,110,200,210) : IM_COL32(40,55,85,160));
-                    float lH = xBtnSz * 0.22f;
-                    bg->AddLine(ImVec2(minCtr.x-lH,minCtr.y+lH*0.4f),
-                                ImVec2(minCtr.x+lH,minCtr.y+lH*0.4f),
-                                IM_COL32(255,255,255,220), 2.5f);
-                } else {
-                    // Minimized: tap anywhere on the bar to restore
-                    bool barHov = io.MousePos.x >= wp0.x && io.MousePos.x <= wp0.x + winW
-                               && io.MousePos.y >= wp0.y && io.MousePos.y <= wp0.y + headerH;
-                    if (barHov && io.MouseClicked[0]) g_menu.isMinimized = false;
-                }
-
-                if (!g_menu.isMinimized) { // hide sidebar+content when minimized
-                // ── Sidebar: full height, NO scroll ──────────────────────
-                SetCursorPos(ImVec2(0, 0));
-                PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
-                PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-                BeginChild(O("##SidebarCh"), ImVec2(sbW, winH), false,
-                    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-                DrawSidebar(sbW, winH, headerH);
-                EndChild();
-                PopStyleVar();
-                PopStyleColor();
-
-                // ── Content: starts BELOW header, NO outer scroll ─────────
-                SetCursorPos(ImVec2(sbW, headerH));
-                PushStyleColor(ImGuiCol_ChildBg, ImVec4(0, 0, 0, 0));
-                PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-                BeginChild(O("##ContentCh"), ImVec2(winW - sbW, winH - headerH), false,
-                    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-                DrawContentArea(winW - sbW, winH - headerH);
-                EndChild();
-                PopStyleVar();
-                PopStyleColor();
-                } // end !isMinimized
+                const float sidebarW = 170.0f * sizeScale;
+                // DrawContentArea dulu (backgrounds + header + content).
+                // DrawSidebar setelahnya agar sidebar tampil di atas background.
+                // Klik tab sidebar sekarang pakai direct hit test (io.MouseClicked[0])
+                // sehingga clip rect dari BeginChild tidak memblokir tab mana pun.
+                DrawContentArea(winW, winH, sidebarW);
+                DrawSidebar(winH, sidebarW);
             }
             End();
 
@@ -1256,17 +1171,19 @@ INLINE void DrawMenu(ImGuiIO& io) {
     }
 }
 
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ //
-
-static void DrawToggleButton() {
-    if (g_menu.isOpen && !g_menu.isMinimized) return;
+static void DrawToggleButton(bool cancelMode) {
+    if (g_menu.isOpen) return;
 
     ImGuiIO& io = GetIO();
+    static GLuint play_on_tex  = LoadTextureFromMemory(play_on_png,  play_on_png_len);
+    static GLuint play_off_tex = LoadTextureFromMemory(play_off_png, play_off_png_len);
 
-    float button_size = 78.f;
+    float button_size  = 130.f;
     float windowWidth  = button_size + GetStyle().WindowPadding.x * 2.0f;
     float windowHeight = button_size + GetStyle().WindowPadding.y * 2.0f;
     const float rightMargin = 20.0f;
+
+    if (g_sideBtnsY <= 0.0f) g_sideBtnsY = io.DisplaySize.y - 150.0f;
 
     float fixedX = io.DisplaySize.x - rightMargin - windowWidth;
 
@@ -1286,80 +1203,39 @@ static void DrawToggleButton() {
         ImVec2 center(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
 
         if (InvisibleButton(O("##TglBtnHit"), size)) {
-            AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
-            if (AutoPlay::bAutoPlaying) AutoPlay::ClearState();
+            if (cancelMode) {
+                persistent_bool[O("bAutoQueue")] = false;
+                g_aqCounting = false;
+            } else {
+                AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
+                if (AutoPlay::bAutoPlaying) AutoPlay::ClearState();
+            }
         }
-        bool hov = IsItemHovered();
+
+        GLuint tex = cancelMode ? play_on_tex :
+                     (AutoPlay::bAutoPlaying ? play_on_tex : play_off_tex);
 
         float r = size.x * 0.5f;
         ImDrawList* dl = GetWindowDrawList();
-
-        bool active = AutoPlay::bAutoPlaying;
-
-        // ── Drawn icon — simple & clean ──────────────────────────────────────
-        // Outer glow
-        ImU32 glowCol = active
-            ? IM_COL32(0, 220, 120, hov ? 90 : 40)
-            : IM_COL32(180, 30, 30, hov ? 90 : 40);
-        dl->AddCircleFilled(center, r + 6.0f, glowCol);
-
-        // Main circle background
-        ImU32 bgCol = active
-            ? IM_COL32(12, 28, 20, 235)
-            : IM_COL32(22, 12, 12, 235);
-        dl->AddCircleFilled(center, r, bgCol);
-
-        // Border ring
-        ImU32 ringCol = active
-            ? IM_COL32(0, 210, 120, hov ? 255 : 200)
-            : IM_COL32(200, 30, 30, hov ? 255 : 180);
-        dl->AddCircle(center, r, ringCol, 0, 3.0f);
-
-        if (active) {
-            // Pause icon — two vertical bars
-            float bH  = r * 0.52f;
-            float bW  = r * 0.16f;
-            float gap = r * 0.13f;
-            float lx  = center.x - gap * 0.5f - bW;
-            float rx  = center.x + gap * 0.5f;
-            float ty  = center.y - bH * 0.5f;
-            dl->AddRectFilled(ImVec2(lx,    ty), ImVec2(lx+bW, ty+bH), IM_COL32(0, 230, 140, 255), 2.0f);
-            dl->AddRectFilled(ImVec2(rx,    ty), ImVec2(rx+bW, ty+bH), IM_COL32(0, 230, 140, 255), 2.0f);
-        } else {
-            // Play icon — filled triangle ▶
-            float hs = r * 0.36f;
-            ImVec2 p0(center.x - hs * 0.45f, center.y - hs);
-            ImVec2 p1(center.x - hs * 0.45f, center.y + hs);
-            ImVec2 p2(center.x + hs * 1.0f,  center.y);
-            dl->AddTriangleFilled(p0, p1, p2, IM_COL32(220, 60, 60, 255));
-        }
-
-        // Small status label below icon
-        const char* statusLbl = active ? "ON" : "OFF";
-        ImVec2 tSz = CalcTextSize(statusLbl);
-        ImU32  tCol = active ? IM_COL32(0,220,120,230) : IM_COL32(200,60,60,230);
-        dl->AddText(ImVec2(center.x - tSz.x * 0.5f, center.y + r * 0.62f), tCol, statusLbl);
+        dl->AddImage((void*)(intptr_t)tex, ImVec2(center.x - r, center.y - r), ImVec2(center.x + r, center.y + r));
     }
     End();
     PopStyleVar();
     PopStyleColor(2);
 }
 
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ //
-
 static void DrawFloatingButton(ImGuiIO& io) {
     if (g_menu.isOpen) return;
 
-    // Simple floating button — clean circle design
-    float btnR    = 38.0f;   // radius
-    float winSize = btnR * 2.0f + 8.0f;
-    const float rightMargin = 24.0f;
+    float btnR    = 65.0f;
+    float winSize = (btnR * 2.0f) + 10.0f;
+    const float rightMargin = 20.0f;
 
     if (g_sideBtnsY <= 0.0f) g_sideBtnsY = io.DisplaySize.y - 150.0f;
 
-    float toggleWidth = 78.f + (GetStyle().WindowPadding.x * 2.0f);
+    float toggleWidth = 130.f + (GetStyle().WindowPadding.x * 2.0f);
     float fixedX = io.DisplaySize.x - rightMargin - toggleWidth + (toggleWidth - winSize) * 0.5f;
-    float posY   = g_sideBtnsY - 100.0f;
+    float posY   = g_sideBtnsY - 140.0f;
 
     SetNextWindowPos(ImVec2(fixedX, posY), ImGuiCond_Always);
     SetNextWindowSize(ImVec2(winSize, winSize), ImGuiCond_Always);
@@ -1372,304 +1248,333 @@ static void DrawFloatingButton(ImGuiIO& io) {
               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar |
               ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
 
+        static GLuint logo_tex = LoadTextureFromMemory(logo_png, logo_png_len);
+
         ImDrawList* dl = GetWindowDrawList();
-        ImVec2 center  = ImVec2(fixedX + winSize * 0.5f, posY + winSize * 0.5f);
+        ImVec2 center  = ImVec2(fixedX + (winSize * 0.5f), posY + (winSize * 0.5f));
 
         InvisibleButton(O("##FloatBtnHit"), ImVec2(winSize, winSize));
 
-        // Drag moves the whole button group
         if (IsItemActive() && IsMouseDragging(ImGuiMouseButton_Left)) {
             g_sideBtnsY += io.MouseDelta.y;
-            g_sideBtnsY = ImClamp(g_sideBtnsY, 140.0f, io.DisplaySize.y - 130.0f);
+            g_sideBtnsY = ImClamp(g_sideBtnsY, 160.0f, io.DisplaySize.y - 150.0f);
         }
 
-        // Tap opens menu
         if (IsItemHovered() && IsMouseReleased(0) && ImGui::GetMouseDragDelta(0).y == 0) {
             g_menu.isOpen = true;
         }
 
-        bool hov = IsItemHovered();
-
-        // Outer glow ring
-        dl->AddCircle(center, btnR + 5.0f, IM_COL32(200, 30, 30, hov ? 120 : 60), 0, 2.0f);
-        // Main filled circle — dark
-        dl->AddCircleFilled(center, btnR, hov ? IM_COL32(38, 38, 48, 245) : IM_COL32(22, 22, 30, 230));
-        // Red accent border
-        dl->AddCircle(center, btnR, IM_COL32(200, 30, 30, hov ? 255 : 180), 0, 2.5f);
-
-        // Simple "8BP" label inside
-        const char* lbl = "8BP";
-        ImVec2 tSz = CalcTextSize(lbl);
-        SetWindowFontScale(1.0f);
-        dl->AddText(ImVec2(center.x - tSz.x * 0.5f, center.y - tSz.y * 0.5f),
-                    IM_COL32(220, 220, 230, 255), lbl);
+        dl->AddImage((void*)(intptr_t)logo_tex,
+                     ImVec2(center.x - btnR, center.y - btnR),
+                     ImVec2(center.x + btnR, center.y + btnR));
     }
     End();
     PopStyleVar(2);
     PopStyleColor();
 }
 
-// ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ //
+static void DrawLicenseStatusOverlay(ImGuiIO& io) {
+    if (g_LicenseStatusCode == LSC_OK || g_LicenseStatusCode == LSC_PENDING) return;
 
-// ── License status overlay — top-right, non-intrusive ───────────────────────
-  static void DrawLicenseStatusOverlay(ImGuiIO& io) {
-      if (g_LicenseStatusCode == LSC_OK || g_LicenseStatusCode == LSC_PENDING) return;
+    const char* lbl;
+    ImU32 col, bgCol, brdCol;
+    switch (g_LicenseStatusCode) {
+        case LSC_BANNED:
+            lbl = "LICENSE BANNED";
+            col = IM_COL32(255,75,75,255); bgCol = IM_COL32(28,6,6,225); brdCol = IM_COL32(190,40,40,150); break;
+        case LSC_EXPIRED:
+            lbl = "LICENSE EXPIRED";
+            col = IM_COL32(255,168,38,255); bgCol = IM_COL32(26,15,3,225); brdCol = IM_COL32(185,115,18,150); break;
+        default:
+            lbl = "UPDATE REQUIRED";
+            col = IM_COL32(110,155,255,255); bgCol = IM_COL32(8,12,28,225); brdCol = IM_COL32(75,100,200,150); break;
+    }
 
-      const char* lbl;
-      ImU32 col, bgCol, brdCol;
-      switch (g_LicenseStatusCode) {
-          case LSC_BANNED:
-              lbl = "LICENSE BANNED";
-              col = IM_COL32(255,75,75,255); bgCol = IM_COL32(28,6,6,225); brdCol = IM_COL32(190,40,40,150); break;
-          case LSC_EXPIRED:
-              lbl = "LICENSE EXPIRED";
-              col = IM_COL32(255,168,38,255); bgCol = IM_COL32(26,15,3,225); brdCol = IM_COL32(185,115,18,150); break;
-          default:
-              lbl = "UPDATE REQUIRED";
-              col = IM_COL32(110,155,255,255); bgCol = IM_COL32(8,12,28,225); brdCol = IM_COL32(75,100,200,150); break;
-      }
+    float lineH  = GetFontSize();
+    bool  hasSub = !g_LicenseStatusMsg.empty();
+    float boxW   = 230.0f;
+    float boxH   = 12.0f + lineH + (hasSub ? lineH + 5.0f : 0.0f) + 12.0f;
+    float bx     = io.DisplaySize.x - 18.0f - boxW;
+    float by     = 18.0f;
 
-      float lineH  = GetFontSize();
-      bool  hasSub = !g_LicenseStatusMsg.empty();
-      float boxW   = 230.0f;
-      float boxH   = 12.0f + lineH + (hasSub ? lineH + 5.0f : 0.0f) + 12.0f;
-      float bx     = io.DisplaySize.x - 18.0f - boxW;
-      float by     = 18.0f;
+    ImDrawList* dl = GetBackgroundDrawList();
+    dl->AddRectFilled({bx,by},{bx+boxW,by+boxH}, bgCol, 10.0f);
+    dl->AddRect      ({bx,by},{bx+boxW,by+boxH}, brdCol, 10.0f, 0, 1.2f);
+    dl->AddRectFilled({bx,by+4},{bx+3,by+boxH-4}, col, 2.0f);
+    dl->AddText({bx+11.0f, by+12.0f}, col, lbl);
+    if (hasSub)
+        dl->AddText({bx+11.0f, by+12.0f+lineH+5.0f},
+                    IM_COL32(155,155,168,200), g_LicenseStatusMsg.c_str());
+}
 
-      ImDrawList* dl = GetBackgroundDrawList();
-      dl->AddRectFilled({bx,by},{bx+boxW,by+boxH}, bgCol, 10.0f);
-      dl->AddRect      ({bx,by},{bx+boxW,by+boxH}, brdCol, 10.0f, 0, 1.2f);
-      dl->AddRectFilled({bx,by+4},{bx+3,by+boxH-4}, col, 2.0f);
-      dl->AddText({bx+11.0f, by+12.0f}, col, lbl);
-      if (hasSub)
-          dl->AddText({bx+11.0f, by+12.0f+lineH+5.0f},
-                      IM_COL32(155,155,168,200), g_LicenseStatusMsg.c_str());
-  }
+static void DrawLicenseBlockScreen(ImGuiIO& io) {
+    SetNextWindowPos(ImVec2(0,0));
+    SetNextWindowSize(io.DisplaySize);
+    PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.02f,0.02f,0.04f,0.95f));
+    Begin(O("##BlkOvl"), nullptr,
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBringToFrontOnFocus);
+    PopStyleColor();
 
-  // ── License block screen — shown when banned / expired / old version ──────────
-  static void DrawLicenseBlockScreen(ImGuiIO& io) {
-      SetNextWindowPos(ImVec2(0,0));
-      SetNextWindowSize(io.DisplaySize);
-      PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.02f,0.02f,0.04f,0.95f));
-      Begin(O("##BlkOvl"), nullptr,
+    const char* mainTxt; const char* subTxt;
+    ImU32 accentU; ImVec4 titleC;
+    switch (g_LicenseStatusCode) {
+        case LSC_BANNED:
+            mainTxt = O("LICENSE BANNED"); subTxt = O("Your license has been banned. Contact the admin.");
+            accentU = IM_COL32(200,38,38,255); titleC = ImVec4(1.0f,0.18f,0.18f,1.0f); break;
+        case LSC_EXPIRED:
+            mainTxt = O("LICENSE EXPIRED"); subTxt = O("Your license has expired. Please renew to continue.");
+            accentU = IM_COL32(200,128,18,255); titleC = ImVec4(1.0f,0.62f,0.08f,1.0f); break;
+        default:
+            mainTxt = O("UPDATE REQUIRED"); subTxt = O("A newer version is required. Please update the mod.");
+            accentU = IM_COL32(75,100,210,255); titleC = ImVec4(0.48f,0.64f,1.0f,1.0f); break;
+    }
+
+    float winW = 500.0f;
+    SetNextWindowPos(ImVec2(io.DisplaySize.x*0.5f, io.DisplaySize.y*0.5f),
+                     ImGuiCond_Always, ImVec2(0.5f,0.5f));
+    SetNextWindowSize(ImVec2(winW,0), ImGuiCond_Always);
+    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(14,16,26,255));
+    PushStyleVar(ImGuiStyleVar_WindowRounding,   20.0f);
+    PushStyleVar(ImGuiStyleVar_WindowPadding,    ImVec2(32.0f,28.0f));
+    PushStyleVar(ImGuiStyleVar_WindowBorderSize,  0.0f);
+    if (Begin(O("##BlkCard"), nullptr,
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+        ImDrawList* d2 = GetWindowDrawList();
+        ImVec2 wp2 = GetWindowPos(), ws2 = GetWindowSize();
+        d2->AddRectFilled(wp2, {wp2.x+ws2.x,wp2.y+3}, accentU, 20.0f, ImDrawFlags_RoundCornersTop);
+        d2->AddRectFilled(wp2, {wp2.x+ws2.x,wp2.y+22}, accentU, 20.0f, ImDrawFlags_RoundCornersTop);
+        d2->AddRect(wp2, {wp2.x+ws2.x,wp2.y+ws2.y}, accentU, 20.0f, 0, 1.2f);
+
+        Dummy(ImVec2(0,8));
+        SetWindowFontScale(1.5f);
+        ImVec2 ts = CalcTextSize(mainTxt);
+        SetCursorPosX((ws2.x-64.0f-ts.x)*0.5f);
+        TextColored(titleC, "%s", mainTxt);
+        SetWindowFontScale(1.0f);
+        Dummy(ImVec2(0,8));
+        PushTextWrapPos(GetCursorPosX()+ws2.x-64.0f);
+        TextColored(ImVec4(0.76f,0.76f,0.82f,1.0f), "%s", subTxt);
+        if (!g_LicenseStatusMsg.empty()) {
+            Dummy(ImVec2(0,5));
+            TextColored(ImVec4(0.52f,0.52f,0.60f,1.0f), "%s", g_LicenseStatusMsg.c_str());
+        }
+        PopTextWrapPos();
+        if (!g_ExpTime.empty() && g_ExpTime != "N/A") {
+            Dummy(ImVec2(0,8));
+            std::string expLine = std::string(O("Expiry: ")) + g_ExpTime;
+            TextColored(ImVec4(0.42f,0.42f,0.50f,1.0f), "%s", expLine.c_str());
+        }
+        Dummy(ImVec2(0,6));
+    }
+    End();
+    PopStyleVar(3); PopStyleColor();
+    End();
+}
+
+static bool first_time = true;
+INLINE void DrawLogin(ImGuiIO& io) {
+    if (logged_in) return DrawMenu(io);
+
+    SetNextWindowPos(ImVec2(0, 0));
+    SetNextWindowSize(io.DisplaySize);
+    PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.02f, 0.02f, 0.05f, 0.97f));
+    Begin(O("##Overlay"), nullptr,
           ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBringToFrontOnFocus);
-      PopStyleColor();
+    {
+        ImDrawList* bgdl = GetWindowDrawList();
+        float sp = 44.0f;
+        for (float x = 0; x < io.DisplaySize.x; x += sp)
+            for (float y = 0; y < io.DisplaySize.y; y += sp)
+                bgdl->AddCircleFilled(ImVec2(x, y), 1.2f, IM_COL32(40, 55, 80, 50));
+    }
+    PopStyleColor();
 
-      const char* mainTxt; const char* subTxt;
-      ImU32 accentU; ImVec4 titleC;
-      switch (g_LicenseStatusCode) {
-          case LSC_BANNED:
-              mainTxt = O("LICENSE BANNED"); subTxt = O("Your license has been banned. Contact the admin.");
-              accentU = IM_COL32(200,38,38,255); titleC = ImVec4(1.0f,0.18f,0.18f,1.0f); break;
-          case LSC_EXPIRED:
-              mainTxt = O("LICENSE EXPIRED"); subTxt = O("Your license has expired. Please renew to continue.");
-              accentU = IM_COL32(200,128,18,255); titleC = ImVec4(1.0f,0.62f,0.08f,1.0f); break;
-          default:
-              mainTxt = O("UPDATE REQUIRED"); subTxt = O("A newer version is required. Please update the mod.");
-              accentU = IM_COL32(75,100,210,255); titleC = ImVec4(0.48f,0.64f,1.0f,1.0f); break;
-      }
+    float cardW = 510.0f;
+    const float cardH = 430.0f;
 
-      float winW = 500.0f;
-      SetNextWindowPos(ImVec2(io.DisplaySize.x*0.5f, io.DisplaySize.y*0.5f),
-                       ImGuiCond_Always, ImVec2(0.5f,0.5f));
-      SetNextWindowSize(ImVec2(winW,0), ImGuiCond_Always);
-      PushStyleColor(ImGuiCol_WindowBg, IM_COL32(14,16,26,255));
-      PushStyleVar(ImGuiStyleVar_WindowRounding,   20.0f);
-      PushStyleVar(ImGuiStyleVar_WindowPadding,    ImVec2(32.0f,28.0f));
-      PushStyleVar(ImGuiStyleVar_WindowBorderSize,  0.0f);
-      if (Begin(O("##BlkCard"), nullptr,
-          ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-          ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-          ImDrawList* d2 = GetWindowDrawList();
-          ImVec2 wp2 = GetWindowPos(), ws2 = GetWindowSize();
-          d2->AddRectFilled(wp2, {wp2.x+ws2.x,wp2.y+3}, accentU, 20.0f, ImDrawFlags_RoundCornersTop);
-          d2->AddRectFilled(wp2, {wp2.x+ws2.x,wp2.y+22}, accentU, 20.0f, ImDrawFlags_RoundCornersTop);
-          d2->AddRect(wp2, {wp2.x+ws2.x,wp2.y+ws2.y}, accentU, 20.0f, 0, 1.2f);
+    if (!g_licenseKeyInputInitialized) {
+        const std::string savedKey = persistent_string[O("key")];
+        if (!savedKey.empty()) {
+            std::snprintf(g_licenseKeyInput, sizeof(g_licenseKeyInput), "%s", savedKey.c_str());
+        }
+        g_licenseKeyInputInitialized = true;
+    }
 
-          Dummy(ImVec2(0,8));
-          SetWindowFontScale(1.5f);
-          ImVec2 ts = CalcTextSize(mainTxt);
-          SetCursorPosX((ws2.x-64.0f-ts.x)*0.5f);
-          TextColored(titleC, "%s", mainTxt);
-          SetWindowFontScale(1.0f);
-          Dummy(ImVec2(0,8));
-          PushTextWrapPos(GetCursorPosX()+ws2.x-64.0f);
-          TextColored(ImVec4(0.76f,0.76f,0.82f,1.0f), "%s", subTxt);
-          if (!g_LicenseStatusMsg.empty()) {
-              Dummy(ImVec2(0,5));
-              TextColored(ImVec4(0.52f,0.52f,0.60f,1.0f), "%s", g_LicenseStatusMsg.c_str());
-          }
-          PopTextWrapPos();
-          if (!g_ExpTime.empty() && g_ExpTime != "N/A") {
-              Dummy(ImVec2(0,8));
-              std::string expLine = std::string(O("Expiry: ")) + g_ExpTime;
-              TextColored(ImVec4(0.42f,0.42f,0.50f,1.0f), "%s", expLine.c_str());
-          }
-          Dummy(ImVec2(0,6));
-      }
-      End();
-      PopStyleVar(3); PopStyleColor();
-      End();
-  }
+    SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
+                     ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    SetNextWindowSize(ImVec2(cardW, 0), ImGuiCond_Always);
 
-  static bool first_time = true;
-  INLINE void DrawLogin(ImGuiIO& io) {
-      if (logged_in) return DrawMenu(io);
+    PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.07f, 0.08f, 0.13f, 1.0f));
+    PushStyleVar(ImGuiStyleVar_WindowRounding, 22.0f);
+    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
-      SetNextWindowPos(ImVec2(0, 0));
-      SetNextWindowSize(io.DisplaySize);
-      PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.02f, 0.02f, 0.05f, 0.97f));
-      Begin(O("##Overlay"), nullptr,
-            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoBringToFrontOnFocus);
-      {
-          ImDrawList* bgdl = GetWindowDrawList();
-          float sp = 44.0f;
-          for (float x = 0; x < io.DisplaySize.x; x += sp)
-              for (float y = 0; y < io.DisplaySize.y; y += sp)
-                  bgdl->AddCircleFilled(ImVec2(x, y), 1.2f, IM_COL32(40, 55, 80, 50));
-      }
-      PopStyleColor();
+    Begin(O("##LoginCard"), nullptr,
+          ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+          ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_AlwaysAutoResize);
 
-      float cardW = 510.0f;
-      float cardH = 0.0f; // auto-size via AlwaysAutoResize
+    ImDrawList* dl = GetWindowDrawList();
+    ImVec2 wp = GetWindowPos();
 
-      SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
-                       ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-      SetNextWindowSize(ImVec2(cardW, 0), ImGuiCond_Always);
+    dl->AddRectFilled(ImVec2(wp.x-2,wp.y-2), ImVec2(wp.x+cardW+2,wp.y+cardH),
+                      IM_COL32(0,200,180,14), 24.0f);
+    dl->AddRect(wp, ImVec2(wp.x+cardW,wp.y+cardH),
+                IM_COL32(0,200,180,80), 22.0f, 0, 1.5f);
+    DrawGradientRect(dl, wp, ImVec2(wp.x+cardW,wp.y+3),
+                     IM_COL32(0,200,180,255), IM_COL32(80,80,230,255), true);
+    dl->AddRectFilled(wp, ImVec2(wp.x+cardW,wp.y+22),
+                      IM_COL32(0,200,180,38), 22.0f, ImDrawFlags_RoundCornersTop);
 
-      PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.07f, 0.08f, 0.13f, 1.0f));
-      PushStyleVar(ImGuiStyleVar_WindowRounding, 22.0f);
-      PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-      PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    float iconCX = wp.x + cardW * 0.5f;
+    float iconCY = wp.y + 72.0f;
+    dl->AddCircleFilled(ImVec2(iconCX,iconCY), 42.0f, IM_COL32(0,200,180,10));
+    dl->AddCircleFilled(ImVec2(iconCX,iconCY), 36.0f, IM_COL32(10,14,22,255));
+    dl->AddCircle    (ImVec2(iconCX,iconCY), 36.0f, IM_COL32(0,200,180,135), 0, 2.0f);
+    float kHX = iconCX - 9.0f, kHY = iconCY - 1.0f;
+    dl->AddCircle(ImVec2(kHX,kHY), 10.0f, IM_COL32(0,225,205,215), 0, 2.2f);
+    dl->AddLine(ImVec2(kHX+10.0f,kHY), ImVec2(kHX+29.0f,kHY), IM_COL32(0,225,205,215), 2.2f);
+    dl->AddLine(ImVec2(kHX+21.0f,kHY), ImVec2(kHX+21.0f,kHY+7.0f), IM_COL32(0,225,205,215), 2.2f);
+    dl->AddLine(ImVec2(kHX+29.0f,kHY), ImVec2(kHX+29.0f,kHY+5.0f), IM_COL32(0,225,205,215), 2.2f);
 
-      Begin(O("##LoginCard"), nullptr,
-            ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_AlwaysAutoResize);
+    dl->AddLine(ImVec2(wp.x+50.0f,wp.y+116.0f),
+                ImVec2(wp.x+cardW-50.0f,wp.y+116.0f),
+                IM_COL32(30,50,75,150), 1.0f);
 
-      ImDrawList* dl = GetWindowDrawList();
-      ImVec2 wp = GetWindowPos();
+    Dummy(ImVec2(cardW, 128.0f));
 
-      // Card border glow
-      dl->AddRectFilled(ImVec2(wp.x-2,wp.y-2), ImVec2(wp.x+cardW+2,wp.y+340),
-                        IM_COL32(0,200,180,14), 24.0f);
-      dl->AddRect(wp, ImVec2(wp.x+cardW,wp.y+340),
-                  IM_COL32(0,200,180,80), 22.0f, 0, 1.5f);
-      // Top neon bar
-      DrawGradientRect(dl, wp, ImVec2(wp.x+cardW,wp.y+3),
-                       IM_COL32(0,200,180,255), IM_COL32(80,80,230,255), true);
-      dl->AddRectFilled(wp, ImVec2(wp.x+cardW,wp.y+22),
-                        IM_COL32(0,200,180,38), 22.0f, ImDrawFlags_RoundCornersTop);
+    if (!ERROR_MESSAGE.empty()) {
+        SetCursorPosX(28.0f);
+        ImVec2 ep = GetCursorScreenPos();
+        float  ew = cardW - 56.0f;
+        dl->AddRectFilled(ep, ImVec2(ep.x+ew,ep.y+44.0f), IM_COL32(40,8,8,210), 8.0f);
+        dl->AddRect      (ep, ImVec2(ep.x+ew,ep.y+44.0f), IM_COL32(190,40,40,145), 8.0f, 0, 1.0f);
+        SetCursorPosX(36.0f);
+        PushTextWrapPos(wp.x+cardW-36.0f);
+        TextColored(ImVec4(1.0f,0.35f,0.35f,1.0f), "%s", ERROR_MESSAGE.c_str());
+        PopTextWrapPos();
+        Dummy(ImVec2(0, 10.0f));
+    }
 
-      // Icon circle — top center
-      float iconCX = wp.x + cardW * 0.5f;
-      float iconCY = wp.y + 72.0f;
-      dl->AddCircleFilled(ImVec2(iconCX,iconCY), 42.0f, IM_COL32(0,200,180,10));
-      dl->AddCircleFilled(ImVec2(iconCX,iconCY), 36.0f, IM_COL32(10,14,22,255));
-      dl->AddCircle    (ImVec2(iconCX,iconCY), 36.0f, IM_COL32(0,200,180,135), 0, 2.0f);
-      float kHX = iconCX - 9.0f, kHY = iconCY - 1.0f;
-      dl->AddCircle(ImVec2(kHX,kHY), 10.0f, IM_COL32(0,225,205,215), 0, 2.2f);
-      dl->AddLine(ImVec2(kHX+10.0f,kHY), ImVec2(kHX+29.0f,kHY), IM_COL32(0,225,205,215), 2.2f);
-      dl->AddLine(ImVec2(kHX+21.0f,kHY), ImVec2(kHX+21.0f,kHY+7.0f), IM_COL32(0,225,205,215), 2.2f);
-      dl->AddLine(ImVec2(kHX+29.0f,kHY), ImVec2(kHX+29.0f,kHY+5.0f), IM_COL32(0,225,205,215), 2.2f);
+    if (is_logging_in) {
+        Dummy(ImVec2(0, 18.0f));
+        static float sa = 0.0f;
+        ImGuiIO& io2 = GetIO();
+        sa += io2.DeltaTime * 4.5f;
+        ImVec2 sc = {wp.x + cardW*0.5f, wp.y + (ERROR_MESSAGE.empty() ? 200.0f : 230.0f)};
+        for (int i = 0; i < 12; i++) {
+            float a = sa + i*IM_PI*2.0f/12.0f, al = (float)(12-i)/12.0f;
+            dl->AddCircleFilled({sc.x+cosf(a)*25.0f,sc.y+sinf(a)*25.0f},
+                                4.5f, IM_COL32(0,220,200,(int)(al*235)));
+        }
+        Dummy(ImVec2(0, 55.0f));
+        const char* authStr = O("Authenticating...");
+        SetCursorPosX((cardW-CalcTextSize(authStr).x)*0.5f);
+        TextColored(ImVec4(0.0f,0.78f,0.68f,0.80f), O("Authenticating..."));
+        Dummy(ImVec2(0, 28.0f));
+    } else {
+        const char* ins = O("Input your license key, then tap LOGIN");
+        SetCursorPosX((cardW-CalcTextSize(ins).x)*0.5f);
+        TextColored(ImVec4(0.43f,0.50f,0.62f,1.0f), O("Input your license key, then tap LOGIN"));
 
-      // Divider
-      dl->AddLine(ImVec2(wp.x+50.0f,wp.y+116.0f),
-                  ImVec2(wp.x+cardW-50.0f,wp.y+116.0f),
-                  IM_COL32(30,50,75,150), 1.0f);
+        Dummy(ImVec2(0, 18.0f));
 
-      // Top padding
-      Dummy(ImVec2(cardW, 128.0f));
+        SetCursorPosX(36.0f);
+        TextColored(ImVec4(0.58f,0.66f,0.78f,1.0f), O("LICENSE KEY"));
+        Dummy(ImVec2(0, 6.0f));
 
-      // Error box
-      if (!ERROR_MESSAGE.empty()) {
-          SetCursorPosX(28.0f);
-          ImVec2 ep = GetCursorScreenPos();
-          float  ew = cardW - 56.0f;
-          dl->AddRectFilled(ep, ImVec2(ep.x+ew,ep.y+44.0f), IM_COL32(40,8,8,210), 8.0f);
-          dl->AddRect      (ep, ImVec2(ep.x+ew,ep.y+44.0f), IM_COL32(190,40,40,145), 8.0f, 0, 1.0f);
-          SetCursorPosX(36.0f);
-          PushTextWrapPos(wp.x+cardW-36.0f);
-          TextColored(ImVec4(1.0f,0.35f,0.35f,1.0f), "%s", ERROR_MESSAGE.c_str());
-          PopTextWrapPos();
-          Dummy(ImVec2(0, 10.0f));
-      }
+        PushStyleColor(ImGuiCol_FrameBg,        ImVec4(0.035f,0.05f,0.08f,1.0f));
+        PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.05f,0.08f,0.12f,1.0f));
+        PushStyleColor(ImGuiCol_FrameBgActive,  ImVec4(0.06f,0.10f,0.15f,1.0f));
+        PushStyleColor(ImGuiCol_Border,         ImVec4(0.0f,0.72f,0.62f,0.50f));
+        PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+        PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.2f);
+        SetCursorPosX(36.0f);
+        SetNextItemWidth(cardW - 72.0f);
+        InputText(O("##LicenseKeyInput"), g_licenseKeyInput, sizeof(g_licenseKeyInput),
+                  ImGuiInputTextFlags_CharsNoBlank | ImGuiInputTextFlags_AutoSelectAll);
+        PopStyleVar(2);
+        PopStyleColor(4);
 
-      if (is_logging_in) {
-          Dummy(ImVec2(0, 18.0f));
-          static float sa = 0.0f;
-          sa += io.DeltaTime * 4.5f;
-          ImVec2 sc = {wp.x + cardW*0.5f, wp.y + (ERROR_MESSAGE.empty() ? 200.0f : 230.0f)};
-          for (int i = 0; i < 12; i++) {
-              float a = sa + i*IM_PI*2.0f/12.0f, al = (float)(12-i)/12.0f;
-              dl->AddCircleFilled({sc.x+cosf(a)*25.0f,sc.y+sinf(a)*25.0f},
-                                  4.5f, IM_COL32(0,220,200,(int)(al*235)));
-          }
-          Dummy(ImVec2(0, 55.0f));
-          const char* authStr = O("Authenticating...");
-          SetCursorPosX((cardW-CalcTextSize(authStr).x)*0.5f);
-          TextColored(ImVec4(0.0f,0.78f,0.68f,0.80f), O("Authenticating..."));
-          Dummy(ImVec2(0, 28.0f));
-      } else {
-          const char* ins = O("Paste your license key, then tap LOGIN");
-          SetCursorPosX((cardW-CalcTextSize(ins).x)*0.5f);
-          TextColored(ImVec4(0.43f,0.50f,0.62f,1.0f), O("Paste your license key, then tap LOGIN"));
+        Dummy(ImVec2(0, 12.0f));
 
-          Dummy(ImVec2(0, 22.0f));
+        bool AutoLogin = first_time && !persistent_string[O("key")].empty();
 
-          bool AutoLogin = first_time && !persistent_string["key"].empty();
-          SetCursorPosX(36.0f);
+        SetCursorPosX(36.0f);
+        PushStyleColor(ImGuiCol_Button,        ImVec4(0.04f,0.08f,0.12f,1.0f));
+        PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.06f,0.14f,0.18f,1.0f));
+        PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.03f,0.10f,0.13f,1.0f));
+        PushStyleColor(ImGuiCol_Text,          ImVec4(0.60f,0.88f,0.84f,1.0f));
+        PushStyleColor(ImGuiCol_Border,        ImVec4(0.0f,0.72f,0.62f,0.38f));
+        PushStyleVar(ImGuiStyleVar_FrameRounding,   12.0f);
+        PushStyleVar(ImGuiStyleVar_FrameBorderSize,  1.0f);
+        bool pasteClicked = Button(O("PASTE FROM CLIPBOARD"), ImVec2(cardW-72.0f, 46.0f));
 
-          PushStyleColor(ImGuiCol_Button,        ImVec4(0.02f,0.18f,0.16f,1.0f));
-          PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.04f,0.25f,0.22f,1.0f));
-          PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.01f,0.12f,0.10f,1.0f));
-          PushStyleColor(ImGuiCol_Text,          ImVec4(0.0f,0.90f,0.80f,1.0f));
-          PushStyleColor(ImGuiCol_Border,        ImVec4(0.0f,0.72f,0.62f,0.60f));
-          PushStyleVar(ImGuiStyleVar_FrameRounding,   14.0f);
-          PushStyleVar(ImGuiStyleVar_FrameBorderSize,  1.5f);
-          SetWindowFontScale(1.25f);
-          bool clicked = Button(O("LOGIN"), ImVec2(cardW-72.0f, 62.0f));
-          SetWindowFontScale(1.0f);
+        if (pasteClicked) {
+            JNIEnv* env;
+            jint r = VM->GetEnv((void**)&env, JNI_VERSION_1_6);
+            if (r == JNI_EDETACHED) {
+                if (VM->AttachCurrentThread(&env, nullptr) != 0) {
+                    ERROR_MESSAGE = O("Failed to attach thread to JVM");
+                }
+            } else if (r != JNI_OK) {
+                ERROR_MESSAGE = O("Failed to get JNIEnv");
+            }
+            if (r == JNI_OK || r == JNI_EDETACHED) {
+                const std::string pasted = NormalizeLicenseKey(getClipboard(env));
+                std::snprintf(g_licenseKeyInput, sizeof(g_licenseKeyInput), "%s", pasted.c_str());
+            }
+        }
 
-          if (AutoLogin || clicked) {
-              if (DEBUG_BYPASS_LOGIN) {
-                  logged_in = true;
-                  g_menu.isOpen = true;
-              } else {
-                  JNIEnv* env;
-                  jint r = VM->GetEnv((void**)&env, JNI_VERSION_1_6);
-                  if (r == JNI_EDETACHED) {
-                      if (VM->AttachCurrentThread(&env, nullptr) != 0)
-                          ERROR_MESSAGE = O("Failed to attach thread to JVM");
-                  } else if (r != JNI_OK) {
-                      ERROR_MESSAGE = O("Failed to get JNIEnv");
-                  } else {
-                      std::thread([](std::string aid, std::string k) {
-                          Login(aid, k);
-                      }, getAndroidID(env), AutoLogin ? persistent_string["key"] : getClipboard(env)).detach();
-                  }
-                  first_time = false;
-              }
-          }
-          PopStyleVar(2);
-          PopStyleColor(5);
-          Dummy(ImVec2(0, 32.0f));
-      }
+        Dummy(ImVec2(0, 12.0f));
+        SetCursorPosX(36.0f);
+        SetWindowFontScale(1.25f);
+        bool clicked = Button(O("LOGIN"), ImVec2(cardW-72.0f, 62.0f));
+        SetWindowFontScale(1.0f);
 
-      End();
-      PopStyleVar(3);
-      PopStyleColor();
-      End();
-  }
- 
+        if (AutoLogin || clicked) {
+            if (DEBUG_BYPASS_LOGIN) {
+                logged_in = true;
+                g_menu.isOpen = true;
+            } else {
+                JNIEnv* env;
+                jint r = VM->GetEnv((void**)&env, JNI_VERSION_1_6);
+                if (r == JNI_EDETACHED) {
+                    if (VM->AttachCurrentThread(&env, nullptr) != 0)
+                        ERROR_MESSAGE = O("Failed to attach thread to JVM");
+                } else if (r != JNI_OK) {
+                    ERROR_MESSAGE = O("Failed to get JNIEnv");
+                } else {
+                    std::string keyToLogin = AutoLogin ? persistent_string[O("key")] : NormalizeLicenseKey(g_licenseKeyInput);
+                    if (keyToLogin.empty()) keyToLogin = NormalizeLicenseKey(getClipboard(env));
+                    std::snprintf(g_licenseKeyInput, sizeof(g_licenseKeyInput), "%s", keyToLogin.c_str());
+                    std::thread([](std::string aid, std::string k) {
+                        Login(aid, k);
+                    }, getAndroidID(env), keyToLogin).detach();
+                }
+                first_time = false;
+            }
+        }
+        PopStyleVar(2);
+        PopStyleColor(5);
+        Dummy(ImVec2(0, 24.0f));
+    }
+
+    End();
+    PopStyleVar(3);
+    PopStyleColor();
+    End();
+}
+
 INLINE void SetupImgui() {
     PACKAGE_NAME = string(getcmdline());
 
     ImGui::CreateContext();
 
     auto& style = ImGui::GetStyle();
-    auto& io = ImGui::GetIO();
+    auto& io    = ImGui::GetIO();
 
     io.ConfigFlags |= ImGuiConfigFlags_IsTouchScreen;
 
@@ -1713,49 +1618,48 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
     if (IsExpired()) {
         DrawExpired(io);
     } else if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
-          // Periodic license status check every 5 minutes
-          {
-              // Per-frame local expiry check — instant lock when countdown hits 0
-              if (logged_in && g_ExpiryTimestamp > 0 && g_LicenseStatusCode == LSC_OK) {
-                  if ((int64_t)time(nullptr) >= g_ExpiryTimestamp) {
-                      g_LicenseStatusCode = LSC_EXPIRED;
-                      g_LicenseStatusMsg  = OO("License has expired").str();
-                  }
-              }
-              static time_t s_lastCheck = 0;
-              time_t nowT = time(nullptr);
-              if (logged_in && (nowT - s_lastCheck) > 1 && !g_StatusChecking) {  // realtime: every 1s
-                  RefreshLicenseStatus();
-                  s_lastCheck = nowT;
-              }
-          }
-          if (g_LicenseStatusCode == LSC_BANNED || g_LicenseStatusCode == LSC_EXPIRED || g_LicenseStatusCode == LSC_VERSION_OLD) {
-              DrawLicenseBlockScreen(io);
-              DrawLicenseStatusOverlay(io);
-          } else {
-              if (!g_menu.isOpen) { g_menu.isMinimized = false; }
-                 DrawFloatingButton(io);
-                 DrawMenu(io);
+        {
+            if (logged_in && g_ExpiryTimestamp > 0 && g_LicenseStatusCode == LSC_OK) {
+                if ((int64_t)time(nullptr) >= g_ExpiryTimestamp) {
+                    g_LicenseStatusCode = LSC_EXPIRED;
+                    g_LicenseStatusMsg  = OO("License has expired").str();
+                }
+            }
+            static time_t s_lastCheck = 0;
+            time_t nowT = time(nullptr);
+            if (logged_in && (nowT - s_lastCheck) > 1 && !g_StatusChecking) {
+                RefreshLicenseStatus();
+                s_lastCheck = nowT;
+            }
+        }
+        if (g_LicenseStatusCode == LSC_BANNED || g_LicenseStatusCode == LSC_EXPIRED || g_LicenseStatusCode == LSC_VERSION_OLD) {
+            DrawLicenseBlockScreen(io);
+            DrawLicenseStatusOverlay(io);
+        } else {
+            static int s_notInGameFrames = 0;
+            if (!g_isInGame) { s_notInGameFrames++; if (s_notInGameFrames > 8) g_menu.isOpen = false; }
+            else             { s_notInGameFrames = 0; }
+            if (g_isInGame) DrawFloatingButton(io);
+            DrawMenu(io);
 
-  {
-      SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
-      Begin(O("##PoweredBy"), nullptr,
-            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-            ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
-            ImGuiWindowFlags_NoInputs);
-      TextColored(ImColor(0, 255, 0, 255), O("Powered By @Cmengine"));
-      End();
-  }
+            {
+                SetNextWindowPos(ImVec2(Width * 0.5f, Height - 60.0f), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+                Begin(O("##PoweredBy"), nullptr,
+                      ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                      ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                      ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
+                      ImGuiWindowFlags_NoInputs);
+                TextColored(ImColor(0, 255, 0, 255), O("Owner By @LYN4XP"));
+                End();
+            }
 
-      //        DrawLiveStatusOverlay(io);
-              if (g_autoPlayCalculating) DrawCalculating(io);
-              DrawLicenseStatusOverlay(io);
-          }
-      } else {
-          DrawLogin(io);
-      }
-      ImGui::EndFrame();
+            if (g_autoPlayCalculating) DrawCalculating(io);
+            DrawLicenseStatusOverlay(io);
+        }
+    } else {
+        DrawLogin(io);
+    }
+    ImGui::EndFrame();
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     ImGui_ClearHoverEffect();
