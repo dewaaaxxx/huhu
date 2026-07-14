@@ -431,76 +431,11 @@ INLINE void DrawESP(ImDrawList* draw) {
         }
 
         auto stateId = gameStateManager.getCurrentStateId();
-        if (stateId == 4 || stateId == 7 || stateId == 8) gPrediction->determineShotResult(false);
-
-        // ── SHOOT ANIMATION ─────────────────────────────────────────────────
-        // Detect transisi state 4→6 (tembakan dilepas) → expanding ring flash
-        static int    s_prevState  = 0;
-        static float  s_shotTime   = -999.0f;
-        static ImVec2 s_shotOrigin = ImVec2(0, 0);
-        if (s_prevState == 4 && stateId == 6 && gPrediction && gPrediction->guiData.ballsCount > 0) {
-            s_shotTime = (float)GetTime();
-            for (int ci = 0; ci < gPrediction->guiData.ballsCount; ci++) {
-                auto& cb = gPrediction->guiData.balls[ci];
-                if (cb.classification == Ball::Classification::CUE_BALL && cb.onTable) {
-                    s_shotOrigin = WorldToScreen(cb.initialPosition);
-                    break;
-                }
-            }
-        }
-        s_prevState = stateId;
-
-        // Track giliran lokal player: pakai sharedGameManager.mStateManager() persis seperti AutoPlay
-        static bool s_localTurn = false;
-        if (stateId == 4 || stateId == 7 || stateId == 8)
-            s_localTurn = sharedGameManager.mStateManager().isPlayerTurn();
-        else if (stateId != 6)
-            s_localTurn = false;
-
-        if (persistent_bool[O("bESP_ShootAnim")]) {
-            float el = (float)GetTime() - s_shotTime;
-            if (el >= 0.0f && el < 0.9f) {
-                float prog = el / 0.9f;
-                // 3 cincin yang mengembang dengan delay berselang
-                for (int r = 0; r < 3; r++) {
-                    float rp = fmodf(prog + r * 0.333f, 1.0f);
-                    draw->AddCircle(s_shotOrigin, 15.0f + rp * 95.0f,
-                                    IM_COL32(255, 210, 60, (ImU8)(190*(1.0f-rp))), 32, 3.0f);
-                }
-                // Flash awal setelah tembak
-                if (prog < 0.18f) {
-                    float fa = (0.18f - prog) / 0.18f;
-                    draw->AddCircleFilled(s_shotOrigin, 36.0f, IM_COL32(255, 230, 80, (ImU8)(110*fa)));
-                    draw->AddCircle(s_shotOrigin, 18.0f, IM_COL32(255, 255, 120, (ImU8)(220*fa)), 24, 4.0f);
-                }
-            }
-        }
-
-        // ── BALL ROLLING ANIMATION (state 6) ────────────────────────────────
-        // Hanya tampil saat giliran local player (s_localTurn = true dari state 4/7/8)
-        if (stateId == 6) {
-            if (s_localTurn && persistent_bool[O("bESP_RollingAnim")] && persistent_bool[O("bESP_DrawPredictionLine")] && gPrediction && gPrediction->guiData.ballsCount > 0) {
-                float t = (float)GetTime();
-                for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& ball = gPrediction->guiData.balls[i];
-                    if (!ball.onTable || ball.initialPosition == ball.predictedPosition) continue;
-                    ImVec2 destPos = WorldToScreen(ball.predictedPosition);
-                    float pulse = 0.5f + 0.5f * sinf(t * 6.5f + i * 0.85f);
-                    // Outer pulsing ring
-                    draw->AddCircle(destPos, 22.0f + pulse*7.0f,
-                                    IM_COL32(255, 200, 50, (ImU8)(55+40*pulse)), 32, 3.0f);
-                    // Inner fill
-                    draw->AddCircleFilled(destPos, 13.0f,
-                                          IM_COL32(255, 200, 50, (ImU8)(18+18*pulse)), 20);
-                    // 4 orbit dots yang berputar
-                    for (int k = 0; k < 4; k++) {
-                        float a = t * 5.5f + k * IM_PI * 0.5f;
-                        ImVec2 orb(destPos.x + cosf(a)*18.0f, destPos.y + sinf(a)*18.0f);
-                        draw->AddCircleFilled(orb, 3.5f, IM_COL32(255, 205, 50, 215), 8);
-                    }
-                }
-            }
-            return;
+        if (stateId == 4) gPrediction->determineShotResult(false);
+        if (stateId == 6 || stateId == 8) return;
+        if (stateId == 7) {
+            if (!persistent_bool["bEnemyLine"]) return;
+            gPrediction->determineShotResult(false);
         }
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
@@ -512,101 +447,33 @@ INLINE void DrawESP(ImDrawList* draw) {
             }
         }
 
-        if (persistent_bool[O("bESP_DrawEnemyLines")] && gPrediction->guiData.ballsCount > 0) {
-            // ── ENEMY LINES (animated dashed cyan, no red) ──────────────────
-            ImVec2 cuePos = ImVec2(-1.f, -1.f);
+        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                auto& cb = gPrediction->guiData.balls[i];
-                if (cb.classification == Ball::Classification::CUE_BALL && cb.onTable) {
-                    cuePos = WorldToScreen(cb.initialPosition);
-                    break;
+                auto& ball = gPrediction->guiData.balls[i];
+
+                if (ball.initialPosition != ball.predictedPosition) {
+                    ImVec2 lastPos{};
+                    float lineThick = (float)persistent_int[O("iLineThickness")];
+                    if (lineThick < 1.f) lineThick = 1.f;
+                    for (int j = 1; j < ball.positions.size(); j++) {
+                        auto point = WorldToScreen(ball.positions[j]);
+                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
+                        lastPos = point;
+                    }
                 }
             }
-            if (cuePos.x < 0.f) goto skip_enemy_lines;
-
-            {
-                float dashT = fmodf((float)GetTime() * 1.8f, 1.0f);
-                for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                    auto& ball = gPrediction->guiData.balls[i];
-                    if (!ball.originalOnTable || !ball.onTable) continue;
-                    if (ball.classification == Ball::Classification::CUE_BALL) continue;
-                    if (ball.classification == Ball::Classification::ERR_CLASSIFICATION) continue;
-
-                    bool isEnemy = false;
-                    if (myclass == Ball::Classification::SOLID) {
-                        isEnemy = ball.classification == Ball::Classification::STRIPE ||
-                                  ball.classification == Ball::Classification::EIGHT_BALL;
-                    } else if (myclass == Ball::Classification::STRIPE) {
-                        isEnemy = ball.classification == Ball::Classification::SOLID ||
-                                  ball.classification == Ball::Classification::EIGHT_BALL;
-                    } else {
-                        isEnemy = true;
-                    }
-                    if (!isEnemy) continue;
-
-                    ImVec2 enemyPos = WorldToScreen(ball.initialPosition);
-
-                    // Dashed animated line dari cue ke bola musuh — cyan, bukan merah
-                    ImVec2 ld(enemyPos.x - cuePos.x, enemyPos.y - cuePos.y);
-                    float dist = sqrtf(ld.x*ld.x + ld.y*ld.y);
-                    if (dist > 1.0f) {
-                        ld.x /= dist; ld.y /= dist;
-                        const float dLen = 13.0f, gLen = 8.0f, seg = dLen + gLen;
-                        float off = dashT * seg;
-                        for (float d = off - seg; d < dist; d += seg) {
-                            float d0 = d < 0.0f ? 0.0f : d;
-                            float d1 = (d + dLen) > dist ? dist : (d + dLen);
-                            if (d1 <= d0) continue;
-                            float fade = 1.0f - d0 / dist;
-                            ImVec2 p0(cuePos.x + ld.x*d0, cuePos.y + ld.y*d0);
-                            ImVec2 p1(cuePos.x + ld.x*d1, cuePos.y + ld.y*d1);
-                            draw->AddLine(p0, p1, IM_COL32(80, 200, 255, (ImU8)(165*fade)), 2.2f);
-                        }
-                    }
-
-                    // Pulsing ring highlight di bola musuh
-                    float pulse = 0.5f + 0.5f * sinf((float)GetTime() * 4.5f + i * 1.1f);
-                    float pr = 13.0f + pulse * 4.0f;
-                    draw->AddCircleFilled(enemyPos, pr, IM_COL32(80, 200, 255, (ImU8)(28+22*pulse)), 24);
-                    draw->AddCircle(enemyPos, pr, IM_COL32(80, 200, 255, (ImU8)(165+70*pulse)), 24, 2.2f);
-                }
-            }
-            skip_enemy_lines:;
         }
 
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
-            float lineThick = (float)persistent_int[O("iLineThickness")];
-            if (lineThick < 1.f) lineThick = 1.f;
-
-            const ImVec2& dsp = GetIO().DisplaySize;
-            const float margin = 300.0f;
-
-            // Pass 1: garis lintasan prediksi
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-                if (ball.initialPosition == ball.predictedPosition) continue;
-                if (ball.positions.size() < 2) continue;
-                // Inisialisasi dari positions[0] agar segmen pertama ikut tergambar
-                ImVec2 lastPos = WorldToScreen(ball.positions[0]);
-                for (int j = 1; j < (int)ball.positions.size(); j++) {
-                    ImVec2 point = WorldToScreen(ball.positions[j]);
-                    // Skip titik yang jauh di luar layar (posisi fisika off-table)
-                    bool lastOk = (lastPos.x > -margin && lastPos.x < dsp.x + margin &&
-                                   lastPos.y > -margin && lastPos.y < dsp.y + margin);
-                    bool pointOk = (point.x > -margin && point.x < dsp.x + margin &&
-                                    point.y > -margin && point.y < dsp.y + margin);
-                    if (lastOk && pointOk)
-                        draw->AddLine(lastPos, point, colors[i], lineThick);
-                    lastPos = point;
+
+                if (ball.initialPosition != ball.predictedPosition) {
+                    float circleR = (float)persistent_int[O("iLineThickness")] + 1.f;
+                    if (circleR < 2.f) circleR = 2.f;
+                    draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
                 }
-            }
-
-            // Pass 2: circle di posisi awal (outline) & prediksi (filled) — persis seperti source
-            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                auto& ball = gPrediction->guiData.balls[i];
-                if (ball.initialPosition == ball.predictedPosition) continue;
-                draw->AddCircle(WorldToScreen(ball.initialPosition), 20.0f, colors[i], 0, 6.0f);
-                draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20.0f, colors[i]);
             }
         }
     }
@@ -853,7 +720,7 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
             DrawSectionTitle(O("VIS"), O("VISUAL"), O("Overlay and prediction line settings"));
             need_save |= ToggleSwitch(O("Draw Lines"), &persistent_bool[O("bESP_DrawPredictionLine")]);
             need_save |= ToggleSwitch(O("Draw Pockets"), &persistent_bool[O("bESP_DrawPocketsShotState")]);
-            need_save |= ToggleSwitch(O("Enemy Lines"), &persistent_bool[O("bESP_DrawEnemyLines")]);
+            need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
 
             Dummy(ImVec2(0, 10));
             TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Line Thickness"));
@@ -933,16 +800,6 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
                 TextWrappedColored(ImVec4(0.75f,0.75f,0.75f,1.0f), O("Active: %s"),
                     (iTheme >= 0 && iTheme < numThemes) ? themes[iTheme].name : "Gold");
             }
-
-            Dummy(ImVec2(0, 14));
-            Separator();
-            Dummy(ImVec2(0, 8));
-
-            // ── ANIMASI EFEK ─────────────────────────────────────────────────
-            TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Animasi Efek"));
-            Dummy(ImVec2(0, 5));
-            need_save |= ToggleSwitch(O("Shoot Animation"), &persistent_bool[O("bESP_ShootAnim")]);
-            need_save |= ToggleSwitch(O("Rolling Animation"), &persistent_bool[O("bESP_RollingAnim")]);
 
             Dummy(ImVec2(0, 14));
             Separator();
@@ -1081,32 +938,8 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
             }
 
             Dummy(ImVec2(0, 10));
-
-            // ── FEATURES ─────────────────────────────────────────────────────
-        /*    if (g_Features.empty()) {
-                TextColored(ImVec4(0.3f,0.9f,0.5f,1.0f), "  + All Access (Semua Fitur Aktif)");
-            } else {
-                TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Features"));
-                Dummy(ImVec2(0, 6));
-                PushStyleColor(ImGuiCol_TableBorderLight, IM_COL32(80,65,30,120));
-                if (BeginTable("##featTable", 2,
-                               ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchSame,
-                               ImVec2(rowW, 0))) {
-                    for (const auto& feat : g_Features) {
-                        TableNextColumn();
-                        Dummy(ImVec2(0, 2));
-                        TextColored(ImVec4(0.3f, 0.9f, 0.5f, 1.0f), "+ %s", feat.c_str());
-                        Dummy(ImVec2(0, 2));
-                    }
-                    EndTable();
-                }
-                PopStyleColor();
-            }*/
-
-            Dummy(ImVec2(0, 10));
             Separator();
             Dummy(ImVec2(0, 6));
-         //   TextWrappedColored(ImVec4(0.35f, 1.0f, 0.23f, 1.0f), O("LYN8BP  —  lyn8bp.vercel.app"));
             break;
         }
     }
@@ -1655,7 +1488,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
                       ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
                       ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
                       ImGuiWindowFlags_NoInputs);
-                TextColored(ImColor(0, 255, 0, 255), O("Owner By @LYN4XP"));
+                TextColored(ImColor(0, 255, 0, 255), O("@Cmengine"));
                 End();
             }
 
