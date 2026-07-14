@@ -69,6 +69,16 @@ static const char* BoolText(bool value) {
     return value ? O("Yes") : O("No");
 }
 
+// ── FUNGSI KONVERSI ImU32 KE ImVec4 ──
+static inline ImVec4 ToVec4(ImU32 color) {
+    return ImVec4(
+        ((color >> 0) & 0xFF) / 255.0f,
+        ((color >> 8) & 0xFF) / 255.0f,
+        ((color >> 16) & 0xFF) / 255.0f,
+        ((color >> 24) & 0xFF) / 255.0f
+    );
+}
+
 static void FormatRealtime(char* out, size_t outSize) {
     time_t now = time(nullptr);
     struct tm tmNow{};
@@ -188,18 +198,43 @@ static void DrawSectionTitle(const char* icon, const char* title, const char* su
     ImDrawList* dl = GetWindowDrawList();
     ImVec2 pos = GetCursorScreenPos();
     ImVec2 avail = GetContentRegionAvail();
+    
+    // ── BORDER KIRI ──
+    dl->AddRectFilled(
+        ImVec2(pos.x, pos.y + 4.0f),
+        ImVec2(pos.x + 3.0f, pos.y + 32.0f),
+        g_ThemeAccent,
+        2.0f
+    );
+    
     SetWindowFontScale(1.08f);
-    TextColored(ImVec4(g_ThemeText, "[%s]", icon);
-    SameLine();
+    
+    // ── ICON ──
+    TextColored(ToVec4(g_ThemeText), "%s", icon);
+    SameLine(0, 4);
+    
+    // ── TITLE ──
     TextColored(ImVec4(0.92f, 0.92f, 0.90f, 1.0f), "%s", title);
+    
     SetWindowFontScale(1.0f);
+    
+    // ── SUBTITLE ──
     if (subtitle) {
+        Dummy(ImVec2(0, 2));
         PushTextWrapPos(GetCursorPosX() + avail.x);
-        TextColored(ImVec4(0.62f, 0.62f, 0.62f, 1.0f), "%s", subtitle);
+        TextColored(ToVec4(g_ThemeBorder), "%s", subtitle);
         PopTextWrapPos();
     }
+    
+    // ── GARIS BAWAH ──
     float y = GetCursorScreenPos().y + 6.0f;
-    dl->AddLine(ImVec2(pos.x, y), ImVec2(pos.x + avail.x, y), IM_COL32(98, 75, 28, 150), 1.0f);
+    dl->AddLine(
+        ImVec2(pos.x + 10.0f, y), 
+        ImVec2(pos.x + avail.x, y), 
+        ToVec4(g_ThemeBorder), 
+        1.0f
+    );
+    
     Dummy(ImVec2(0, 13.0f));
 }
 
