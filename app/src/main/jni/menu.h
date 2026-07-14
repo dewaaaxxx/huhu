@@ -336,7 +336,7 @@ INLINE void DrawExpired(ImGuiIO& io) {
 
 static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
 
-static void DrawLiveStatusOverlay(ImGuiIO& io) {
+/*static void DrawLiveStatusOverlay(ImGuiIO& io) {
     if (!persistent_bool[O("bAutoPlay")]) return;
 
     // ================================================================
@@ -453,7 +453,9 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
 
     PopStyleVar(3);
     PopStyleColor(2);
-}
+}*/
+
+    
 INLINE void DrawESP(ImDrawList* draw) {
     if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
         if (!sharedGameManager) return;
@@ -1746,7 +1748,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
       End();
   }
 
-              DrawLiveStatusOverlay(io);
+      //        DrawLiveStatusOverlay(io);
               if (g_autoPlayCalculating) DrawCalculating(io);
               DrawLicenseStatusOverlay(io);
           }
