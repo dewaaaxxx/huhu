@@ -220,7 +220,7 @@ namespace AutoPlay {
 
             // Try 3 powers per angle: derived from shot distance where possible,
             // otherwise use fixed medium values for safety.
-            const double POWERS[3] = { 200.0, 320.0, 420.0, 666.0, 566.0, 466.0, 366.0, 266.0, 166.0, 100.0, 80.0};
+            const double POWERS[11] = { 200.0, 320.0, 420.0, 666.0, 566.0, 466.0, 366.0, 266.0, 166.0, 100.0, 80.0};
 
             for (double power : POWERS) {
                 Candidate dummy = { -1 };
