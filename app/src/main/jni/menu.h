@@ -189,7 +189,7 @@ static void DrawSectionTitle(const char* icon, const char* title, const char* su
     ImVec2 pos = GetCursorScreenPos();
     ImVec2 avail = GetContentRegionAvail();
     SetWindowFontScale(1.08f);
-    TextColored(ImVec4(0.95f, 0.72f, 0.22f, 1.0f), "[%s]", icon);
+    TextColored(ImVec4(g_ThemeText, "[%s]", icon);
     SameLine();
     TextColored(ImVec4(0.92f, 0.92f, 0.90f, 1.0f), "%s", title);
     SetWindowFontScale(1.0f);
@@ -505,7 +505,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
             for (int i = 0; i < 6; i++) {
-                if (Prediction::pocketStatus[i]) {
+                if (gPrediction->guiData.pocketStatus[i]) {
                     auto screenPos = WorldToScreen(pockets[i]);
                     draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 30, GREEN, 0, 5.f);
                 }
@@ -814,7 +814,7 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
     {
         // Gunakan plain char[] — O() macro returns pointer ke temporary yang langsung hancur
         // sehingga pointer jadi dangling dan teks tidak render sama sekali.
-        char part1[32]  = "LYN8BP v3 | ARM64 | FPS ";
+        char part1[32]  = "CM 8BP v3 | ARM64 | FPS ";
         char fpsText[16];
         snprintf(fpsText, sizeof(fpsText), "%.0f", GetIO().Framerate);
         ImVec2 part1Sz = CalcTextSize(part1);
@@ -824,7 +824,7 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
         dl->AddText(ImVec2(statusX + part1Sz.x, wp.y + 11.0f), IM_COL32(45, 236, 59, 255),  fpsText);
 
         // Baris ke-2: status game (state) + status lisensi singkat
-        char stateLine[64];
+        /*char stateLine[64];
         const char* stateStr = g_isInGame ? "In Game" : "Lobby";
         const char* licStr   = (g_LicenseStatusCode == LSC_OK)      ? "Active"
                              : (g_LicenseStatusCode == LSC_BANNED)   ? "Banned"
@@ -834,7 +834,7 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
         snprintf(stateLine, sizeof(stateLine), "State: %s  |  Key: %s", stateStr, licStr);
         ImVec2 stateSz = CalcTextSize(stateLine);
         float stateX   = wp.x + contentX + (contentW - stateSz.x) * 0.5f;
-        dl->AddText(ImVec2(stateX, wp.y + 29.0f), IM_COL32(160, 160, 155, 210), stateLine);
+        dl->AddText(ImVec2(stateX, wp.y + 29.0f), IM_COL32(160, 160, 155, 210), stateLine);*/
     }
     // Close button — larger 36x36 hit area for easier touch
     ImVec2 closeCenter(wp.x + winW - 22.0f, wp.y + 18.0f);
@@ -1036,19 +1036,24 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
                 cdl->AddRect(bMin, bMax, statusCol, 7.0f, 0, 1.5f);
                 cdl->AddText(ImVec2(bMin.x+10, bMin.y+5), statusCol, statusStr);
 
-                // ── Baris 2: Key (jarak cukup di bawah badge) ───────────────────
+                                // ── Baris 2: Key ──────────────────────────────────────────────────
+                // Hitung lebar tulisan "Key" agar teks Key-nya pas di belakangnya +10px
+                ImVec2 sizeKeyLabel = CalcTextSize("Key");
                 cdl->AddText(ImVec2(cPos.x+14, cPos.y+38), IM_COL32(155,150,140,220), "Key");
-                cdl->AddText(ImVec2(cPos.x+52, cPos.y+38), g_ThemeAccent, masked.c_str());
+                cdl->AddText(ImVec2(cPos.x+14 + sizeKeyLabel.x + 10.0f, cPos.y+38), g_ThemeAccent, masked.c_str());
 
                 // ── Baris 3: Expiry ──────────────────────────────────────────────
+                // Hitung lebar tulisan "Expires"
+                ImVec2 sizeExpLabel = CalcTextSize("Expires");
                 if (isLifetime) {
                     cdl->AddText(ImVec2(cPos.x+14, cPos.y+62), IM_COL32(155,150,140,220), "Expires");
-                    cdl->AddText(ImVec2(cPos.x+82, cPos.y+62), IM_COL32(50,220,100,255), "Lifetime");
+                    cdl->AddText(ImVec2(cPos.x+14 + sizeExpLabel.x + 10.0f, cPos.y+62), IM_COL32(50,220,100,255), "Lifetime");
                 } else {
                     char expBuf[64];
                     snprintf(expBuf, sizeof(expBuf), "%s", g_ExpTime.c_str());
                     cdl->AddText(ImVec2(cPos.x+14, cPos.y+62), IM_COL32(155,150,140,220), "Expires");
-                    cdl->AddText(ImVec2(cPos.x+82, cPos.y+62), IM_COL32(200,195,180,255), expBuf);
+                    cdl->AddText(ImVec2(cPos.x+14 + sizeExpLabel.x + 10.0f, cPos.y+62), IM_COL32(200,195,180,255), expBuf);
+                    
                     // ── Baris 4: Countdown ────────────────────────────────────────
                     if (g_ExpiryTimestamp > 0) {
                         int64_t secsLeft = (int64_t)g_ExpiryTimestamp - (int64_t)time(nullptr);
@@ -1067,6 +1072,7 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
                 }
 
                 // ── Baris 5: HWID (paling bawah) ────────────────────────────────
+                // Kode ini sudah rapi, biarkan saja.
                 char hwidLine[64];
                 snprintf(hwidLine, sizeof(hwidLine), "HWID  %s", shortHwid.c_str());
                 cdl->AddText(ImVec2(cPos.x+14, cPos.y+cH-18), IM_COL32(100,100,95,195), hwidLine);
@@ -1077,7 +1083,7 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
             Dummy(ImVec2(0, 10));
 
             // ── FEATURES ─────────────────────────────────────────────────────
-            if (g_Features.empty()) {
+        /*    if (g_Features.empty()) {
                 TextColored(ImVec4(0.3f,0.9f,0.5f,1.0f), "  + All Access (Semua Fitur Aktif)");
             } else {
                 TextWrappedColored(ImVec4(0.93f, 0.70f, 0.25f, 1.0f), O("Features"));
@@ -1095,12 +1101,12 @@ static void DrawContentArea(float winW, float winH, float sidebarW) {
                     EndTable();
                 }
                 PopStyleColor();
-            }
+            }*/
 
             Dummy(ImVec2(0, 10));
             Separator();
             Dummy(ImVec2(0, 6));
-            TextWrappedColored(ImVec4(0.35f, 1.0f, 0.23f, 1.0f), O("LYN8BP  —  lyn8bp.vercel.app"));
+         //   TextWrappedColored(ImVec4(0.35f, 1.0f, 0.23f, 1.0f), O("LYN8BP  —  lyn8bp.vercel.app"));
             break;
         }
     }
