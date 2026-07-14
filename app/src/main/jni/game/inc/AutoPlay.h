@@ -213,7 +213,7 @@ namespace AutoPlay {
         int  steps     = 0;
         int  collected = 0;
 
-        while (steps < 16 && currentScanAngle < maxAngle) {
+        while (steps < 10 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
