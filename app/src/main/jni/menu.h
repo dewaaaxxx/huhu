@@ -18,6 +18,16 @@
 using namespace ImGui;
 using namespace std;
 
+namespace AutoPlay {
+    void ClearState();
+    void Update();
+}
+
+namespace AutoPlayFast {
+    void ClearState();
+    void Update();
+}
+
 static int g_autoPlayMode = 0; // 0 = Human, 1 = Fast
 static bool g_autoPlayEnabled = false;
 
@@ -663,8 +673,8 @@ static void DrawContentArea(float winW, float winH) {
         case 0: {
             const MenuTheme& T1 = GetTheme();
             ImDrawList* dl1 = GetWindowDrawList();
-
-            // ── helper: section header ─────────────────────────────────────
+        
+            // ── helper: section header ──
             auto SectionHeader = [&](const char* title) {
                 Dummy(ImVec2(0, 6));
                 ImVec2 p = GetCursorScreenPos();
@@ -679,42 +689,14 @@ static void DrawContentArea(float winW, float winH) {
                 Dummy(ImVec2(0, 26.0f));
                 Dummy(ImVec2(0, 6));
             };
-
-            // ── helper: StatusRow ──────────────────────────────────────────
-            auto StatusRow = [&](const char* key, const char* val, ImU32 valCol) {
-                float rowH2 = 36.0f;
-                ImVec2 p2   = GetCursorScreenPos();
-                float  w2   = GetContentRegionAvail().x;
-                dl1->AddText(p2, T1.textSecondary, key);
-                ImVec2 ks    = CalcTextSize(key);
-                float colonX = p2.x + ks.x + 6.0f;
-                dl1->AddText(ImVec2(colonX, p2.y), T1.textSecondary, ":");
-                dl1->AddText(ImVec2(colonX + 14.0f, p2.y), valCol, val);
-                Dummy(ImVec2(w2, rowH2));
-            };
-
+        
             // ═══════════════════════════════════════════════════
-            // SECTION: Draw  (paling atas)
+            // SECTION: Auto Play Mode
             // ═══════════════════════════════════════════════════
-            SectionHeader("Draw");
-            need_save |= ToggleSwitch(O("Draw Lines"),       &persistent_bool[O("bESP_DrawPredictionLine")]);
-            need_save |= ToggleSwitch(O("Draw Pockets"),     &persistent_bool[O("bESP_DrawPocketsShotState")]);
-            need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
-
-            // ═══════════════════════════════════════════════════
-            // ═══════════════════════════════════════════════════
-            // SECTION: Auto Play
-            // ═══════════════════════════════════════════════════
-            Dummy(ImVec2(0, 8));
-            SectionHeader("Auto Play");
-            need_save |= ToggleSwitch(O("Auto Play"), &persistent_bool[O("bAutoPlay")]);
-            
             SectionHeader("Auto Play Mode");
-
+        
             // ── TABS: Human | Fast ──
             PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-            PushStyleVar(ImGuiStyleVar_TabRounding, 8.0f);
-            PushStyleVar(ImGuiStyleVar_TabBorderSize, 1.0f);
             
             // Warna tab
             ImVec4 tabBg = ImVec4(0.12f, 0.12f, 0.16f, 1.0f);
@@ -722,9 +704,8 @@ static void DrawContentArea(float winW, float winH) {
             ImVec4 tabActiveBgHov = ImVec4(tabActiveBg.x * 1.1f, tabActiveBg.y * 1.1f, tabActiveBg.z * 1.1f, 1.0f);
             ImVec4 tabText = ImVec4(0.8f, 0.8f, 0.85f, 1.0f);
             ImVec4 tabTextActive = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-        
-            // Simpan mode sebelum render
-            int previousMode = g_autoPlayMode;
+            
+            float tabWidth = (GetContentRegionAvail().x - 10.0f) * 0.5f;
             
             // Render tab Human
             PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
@@ -732,11 +713,9 @@ static void DrawContentArea(float winW, float winH) {
             PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
             PushStyleColor(ImGuiCol_Text, (g_autoPlayMode == 0) ? tabTextActive : tabText);
             
-            float tabWidth = (GetContentRegionAvail().x - 10.0f) * 0.5f;
             if (Button("Human", ImVec2(tabWidth, 40.0f))) {
                 g_autoPlayMode = 0;
                 if (g_autoPlayEnabled) {
-                    // Reset state jika sedang berjalan
                     AutoPlayFast::ClearState();
                     AutoPlay::ClearState();
                 }
@@ -762,7 +741,7 @@ static void DrawContentArea(float winW, float winH) {
             }
             PopStyleColor(4);
             
-            PopStyleVar(3);
+            PopStyleVar(1); // Hanya 1 style var (FrameRounding)
             
             // ── INFO MODE ──
             Dummy(ImVec2(0, 8));
@@ -798,8 +777,16 @@ static void DrawContentArea(float winW, float winH) {
             dl1->AddText(pMode, T1.textSecondary, "Mode:");
             dl1->AddText(ImVec2(pMode.x + 90.0f, pMode.y), modeCol, modeStr);
             Dummy(ImVec2(0, 28.0f));
-
-            Dummy(ImVec2(0, 4));
+        
+            // ═══════════════════════════════════════════════════
+            // SECTION: Draw (ESP)
+            // ═══════════════════════════════════════════════════
+            Dummy(ImVec2(0, 8));
+            SectionHeader("Draw");
+            need_save |= ToggleSwitch("Draw Lines",       &persistent_bool["bESP_DrawPredictionLine"]);
+            need_save |= ToggleSwitch("Draw Pockets",     &persistent_bool["bESP_DrawPocketsShotState"]);
+            need_save |= ToggleSwitch("Show Enemy Lines", &persistent_bool["bEnemyLine"]);
+            
             break;
         }
 
@@ -1225,6 +1212,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
 // ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ //
 
 // ── DRAW TOGGLE BUTTON (VERSION 2) ──
+// ── DRAW TOGGLE BUTTON (VERSION 2) ──
 static void DrawToggleButton() {
     if (g_menu.isOpen && !g_menu.isMinimized) return;
 
@@ -1247,8 +1235,17 @@ static void DrawToggleButton() {
     if (Begin(O("##ToggleBtn"), nullptr,
               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
               ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove)) {
-              
-        if (InvisibleButton(O("##TglBtnHit"), size)) {
+
+        ImVec2 pos = GetCursorScreenPos();
+        ImVec2 size(button_size, button_size);
+        ImVec2 center(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
+
+        // Gunakan Button biasa dengan background transparan
+        PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
+        PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 255, 255, 20));
+        PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(255, 255, 255, 40));
+        
+        if (Button(O("##TglBtnHit"), size)) {
             g_autoPlayEnabled = !g_autoPlayEnabled;
             persistent_bool["bAutoPlayEnabled"] = g_autoPlayEnabled;
             if (g_autoPlayEnabled) {
@@ -1259,22 +1256,8 @@ static void DrawToggleButton() {
                 }
             }
         }
-
-        ImVec2 pos = GetCursorScreenPos();
-        ImVec2 size(button_size, button_size);
-        ImVec2 center(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
-
-        if (InvisibleButton(O("##TglBtnHit"), size)) {
-            g_autoPlayEnabled = !g_autoPlayEnabled;
-            if (g_autoPlayEnabled) {
-                // Clear state sesuai mode
-                if (g_autoPlayMode == 0) {
-                    AutoPlay::ClearState();
-                } else {
-                    AutoPlayFast::ClearState();
-                }
-            }
-        }
+        PopStyleColor(3);
+        
         bool hov = IsItemHovered();
 
         float r = size.x * 0.5f;
