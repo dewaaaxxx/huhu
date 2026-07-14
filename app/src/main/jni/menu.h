@@ -456,6 +456,30 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     PopStyleVar(3);
     PopStyleColor(2);
 }
+
+// ── DrawDashedLine helper (taruh di atas) ──────────────────────────────
+void DrawDashedLine(ImDrawList* dl, const ImVec2& p1, const ImVec2& p2, ImU32 color, float thickness = 2.0f, float dashLen = 10.0f, float gapLen = 8.0f) {
+    ImVec2 delta = ImVec2(p2.x - p1.x, p2.y - p1.y);
+    float len = sqrt(delta.x * delta.x + delta.y * delta.y);
+    if (len < 1.0f) return;
+
+    ImVec2 dir = ImVec2(delta.x / len, delta.y / len);
+    float step = dashLen + gapLen;
+    float t = 0.0f;
+
+    while (t < len) {
+        float startT = t;
+        float endT = t + dashLen;
+        if (endT > len) endT = len;
+
+        ImVec2 startP = ImVec2(p1.x + dir.x * startT, p1.y + dir.y * startT);
+        ImVec2 endP   = ImVec2(p1.x + dir.x * endT,   p1.y + dir.y * endT);
+
+        dl->AddLine(startP, endP, color, thickness);
+        t += step;
+    }
+}
+
 INLINE void DrawESP(ImDrawList* draw) {
     if ((!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) || DEBUG_BYPASS_LOGIN) {
         if (!sharedGameManager) return;
@@ -1640,17 +1664,14 @@ INLINE void SetupImgui() {
     PACKAGE_NAME = string(getcmdline());
 
     ImGui::CreateContext();
+
+    auto& style = ImGui::GetStyle();
+    auto& io = ImGui::GetIO();
     
-    // Di dalam inisialisasi ImGui (misal setelah ImGui::CreateContext())
-    // Di dalam main() atau inisialisasi ImGui
-    ImGuiIO& io = ImGui::GetIO();
     g_FontNomorBola = io.Fonts->AddFontFromFileTTF("fonts/arial.ttf", 9.0f);
     if (!g_FontNomorBola) {
         LOGI("[WARNING] Gagal load font nomor bola, pakai default");
     }
-
-    auto& style = ImGui::GetStyle();
-    auto& io = ImGui::GetIO();
 
     io.ConfigFlags |= ImGuiConfigFlags_IsTouchScreen;
 
