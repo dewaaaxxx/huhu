@@ -279,8 +279,11 @@ namespace AutoPlay {
     }
     
     void Shoot(double angle, double power = 0.f) {
-        //setAimAngle(angle);
-        gPrediction->determineShotResult(true, angle, power);
+        if (!spinIsLocked) {
+            lockedShotSpin = sharedGameManager.getShotSpin();
+            spinIsLocked = true;
+        }
+        gPrediction->determineShotResult(true, angle, power, lockedShotSpin);
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -541,12 +544,12 @@ namespace AutoPlay {
         // ================================================================
         // VALIDASI DENGAN POWER SWEEP + ANGLE REFINEMENT
         // ================================================================
-        static const double kAngleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
+        static const double kAngleOffsets[] = {0.0, -0.005, +0.005, -0.0105, +0.0105, -0.0175, +0.0175, -0.026, +0.026, -0.035, +0.035};
         // Power sweep: dari base naik dan turun dengan step kecil.
         // Simulasi engine yang konfirmasi mana yang benar-benar masuk.
         // Faktor naik sampai 1.8x untuk cover bank shot (energy loss cushion ~25%).
         // Faktor turun sampai 0.5x untuk direct shot dekat.
-        static const double kPowerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.6, 0.55, 1.9, 0.4, 2.0};
+        static const double kPowerFactors[] = {1.0, 1.05, 0.95, 1.12, 0.88, 1.2, 0.85, 1.35, 0.72, 1.5, 0.6, 1.75, 0.45, 2.0, 0.35};
         
         bool foundShot = false;
         for (const auto& cand : candidates) {
@@ -951,27 +954,32 @@ namespace AutoPlay {
 
         // 4. STABILIZE & LOCK (0.4s) - joystick still held from HUM_HOLDING
         if (humanState == HUM_STABILIZING) {
+            // Lock angle ke engine setiap frame
+            setAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
             NativeTouchesMove(5, Width * 0.83f + cos(targetAngle) * 65.0f,
                                  Height * 0.82f + sin(targetAngle) * 65.0f);
-            setAimAngle(targetAngle);
-    
+
             if (now - stateStartTime >= 0.4) {
                 NativeTouchesEnd(5, Width * 0.83f + cos(targetAngle) * 65.0f,
-                                    Height * 0.82f + sin(targetAngle) * 65.0f);    
+                                    Height * 0.82f + sin(targetAngle) * 65.0f);
+                // Set angle + power di memory sebelum pindah state
+                setAimAngle(targetAngle);
+                sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
                 stateStartTime = now;
                 humanState = HUM_PULLING;
             }
             return;
         }
 
-        // 5. POWER PULL (0.85s smooth) via simulated slider touch
+        // 5. POWER PULL — set angle+power lagi biar engine tidak drift, lalu lanjut delay
         if (humanState == HUM_PULLING) {
             setAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
 
             gPrediction->determineShotResult(true, targetAngle, targetPower,
                                              lockedShotSpin, g_CurrentCandidate);
-                                            
-            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
 
             stateStartTime = now;
             humanState = HUM_DELAY_BEFORE_SHOT;
@@ -980,9 +988,15 @@ namespace AutoPlay {
 
         // 6. FINAL HUMAN PAUSE (0.4s) then FIRE!
         if (humanState == HUM_DELAY_BEFORE_SHOT) {
+            // Terus lock angle + power setiap frame biar engine tidak drift
             setAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
+            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
+
             if (now - stateStartTime >= 0.4) {
+                // Final set sebelum fire
                 setAimAngle(targetAngle);
+                sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(targetAngle);
                 sharedGameManager.mVisualCue().mPower(ShotPowerToPower(targetPower));
                 // FIRE SHOT
                 triggerShot();
