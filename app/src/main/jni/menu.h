@@ -18,6 +18,9 @@
 using namespace ImGui;
 using namespace std;
 
+static int g_autoPlayMode = 0; // 0 = Human, 1 = Fast
+static bool g_autoPlayEnabled = false;
+
 struct MenuState {
     bool isOpen      = false;
     bool isMinimized = false;   // collapses to header-only bar
@@ -427,9 +430,19 @@ INLINE void DrawESP(ImDrawList* draw) {
         GameStateManager gameStateManager = sharedGameManager.mStateManager;
         if (!gameStateManager) return;
 
-        if (persistent_bool[O("bAutoPlay")]) {
+       /* if (persistent_bool[O("bAutoPlay")]) {
             DrawToggleButton();
             AutoPlay::Update();
+        }*/
+        
+        if (g_autoPlayEnabled) {
+            DrawToggleButton();
+            // Jalankan mode yang dipilih
+            if (g_autoPlayMode == 0) {
+                AutoPlay::Update();
+            } else {
+                AutoPlayFast::Update();
+            }
         }
 
 
@@ -695,6 +708,96 @@ static void DrawContentArea(float winW, float winH) {
             Dummy(ImVec2(0, 8));
             SectionHeader("Auto Play");
             need_save |= ToggleSwitch(O("Auto Play"), &persistent_bool[O("bAutoPlay")]);
+            
+            SectionHeader("Auto Play Mode");
+
+            // ── TABS: Human | Fast ──
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+            PushStyleVar(ImGuiStyleVar_TabRounding, 8.0f);
+            PushStyleVar(ImGuiStyleVar_TabBorderSize, 1.0f);
+            
+            // Warna tab
+            ImVec4 tabBg = ImVec4(0.12f, 0.12f, 0.16f, 1.0f);
+            ImVec4 tabActiveBg = ImGui::ColorConvertU32ToFloat4(T1.accent);
+            ImVec4 tabActiveBgHov = ImVec4(tabActiveBg.x * 1.1f, tabActiveBg.y * 1.1f, tabActiveBg.z * 1.1f, 1.0f);
+            ImVec4 tabText = ImVec4(0.8f, 0.8f, 0.85f, 1.0f);
+            ImVec4 tabTextActive = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+        
+            // Simpan mode sebelum render
+            int previousMode = g_autoPlayMode;
+            
+            // Render tab Human
+            PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
+            PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 0) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
+            PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
+            PushStyleColor(ImGuiCol_Text, (g_autoPlayMode == 0) ? tabTextActive : tabText);
+            
+            float tabWidth = (GetContentRegionAvail().x - 10.0f) * 0.5f;
+            if (Button("Human", ImVec2(tabWidth, 40.0f))) {
+                g_autoPlayMode = 0;
+                if (g_autoPlayEnabled) {
+                    // Reset state jika sedang berjalan
+                    AutoPlayFast::ClearState();
+                    AutoPlay::ClearState();
+                }
+                persistent_int["iAutoPlayMode"] = 0;
+            }
+            PopStyleColor(4);
+            
+            SameLine(0, 10.0f);
+            
+            // Render tab Fast
+            PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
+            PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 1) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
+            PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
+            PushStyleColor(ImGuiCol_Text, (g_autoPlayMode == 1) ? tabTextActive : tabText);
+            
+            if (Button("Fast", ImVec2(tabWidth, 40.0f))) {
+                g_autoPlayMode = 1;
+                if (g_autoPlayEnabled) {
+                    AutoPlayFast::ClearState();
+                    AutoPlay::ClearState();
+                }
+                persistent_int["iAutoPlayMode"] = 1;
+            }
+            PopStyleColor(4);
+            
+            PopStyleVar(3);
+            
+            // ── INFO MODE ──
+            Dummy(ImVec2(0, 8));
+            const char* modeDesc = (g_autoPlayMode == 0) 
+                ? "✓ Human-like aiming & pulling (slower, realistic)" 
+                : "✓ Fast scanning & instant shooting";
+            ImVec4 descCol = (g_autoPlayMode == 0) 
+                ? ImVec4(0.4f, 0.8f, 0.9f, 1.0f) 
+                : ImVec4(0.9f, 0.8f, 0.3f, 1.0f);
+            TextColored(descCol, "%s", modeDesc);
+            
+            Dummy(ImVec2(0, 12));
+            
+            // ── STATUS ──
+            SectionHeader("Status");
+            
+            // Status AutoPlay
+            const char* statusStr = g_autoPlayEnabled ? "Active" : "Inactive";
+            ImU32 statusCol = g_autoPlayEnabled ? IM_COL32(0, 220, 120, 255) : IM_COL32(200, 60, 60, 255);
+            
+            ImVec2 pStat = GetCursorScreenPos();
+            dl1->AddText(pStat, T1.textSecondary, "AutoPlay:");
+            dl1->AddText(ImVec2(pStat.x + 90.0f, pStat.y), statusCol, statusStr);
+            Dummy(ImVec2(0, 28.0f));
+            
+            // Mode status
+            const char* modeStr = (g_autoPlayMode == 0) ? "Human" : "Fast";
+            ImU32 modeCol = (g_autoPlayMode == 0) 
+                ? IM_COL32(60, 180, 220, 255) 
+                : IM_COL32(220, 180, 60, 255);
+            
+            ImVec2 pMode = GetCursorScreenPos();
+            dl1->AddText(pMode, T1.textSecondary, "Mode:");
+            dl1->AddText(ImVec2(pMode.x + 90.0f, pMode.y), modeCol, modeStr);
+            Dummy(ImVec2(0, 28.0f));
 
             Dummy(ImVec2(0, 4));
             break;
@@ -959,6 +1062,14 @@ INLINE void DrawMenu(ImGuiIO& io) {
             if (!sigsetjmp(jump_buffer, 1)) DrawESP(GetBackgroundDrawList());
             jump_buffer_active = 0;
         }
+        
+        g_autoPlayMode = persistent_int["iAutoPlayMode"];
+        if (g_autoPlayMode < 0 || g_autoPlayMode > 1) {
+            g_autoPlayMode = 0;
+            persistent_int["iAutoPlayMode"] = 0;
+        }
+        
+        g_autoPlayEnabled = persistent_bool["bAutoPlayEnabled"];
 
         float targetAlpha = g_menu.isOpen ? 1.0f : 0.0f;
         if (g_menu.isOpen) {
@@ -1113,6 +1224,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
 // ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ //
 
+// ── DRAW TOGGLE BUTTON (VERSION 2) ──
 static void DrawToggleButton() {
     if (g_menu.isOpen && !g_menu.isMinimized) return;
 
@@ -1135,43 +1247,59 @@ static void DrawToggleButton() {
     if (Begin(O("##ToggleBtn"), nullptr,
               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
               ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove)) {
+              
+        if (InvisibleButton(O("##TglBtnHit"), size)) {
+            g_autoPlayEnabled = !g_autoPlayEnabled;
+            persistent_bool["bAutoPlayEnabled"] = g_autoPlayEnabled;
+            if (g_autoPlayEnabled) {
+                if (g_autoPlayMode == 0) {
+                    AutoPlay::ClearState();
+                } else {
+                    AutoPlayFast::ClearState();
+                }
+            }
+        }
 
         ImVec2 pos = GetCursorScreenPos();
         ImVec2 size(button_size, button_size);
         ImVec2 center(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
 
         if (InvisibleButton(O("##TglBtnHit"), size)) {
-            AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
-            if (AutoPlay::bAutoPlaying) AutoPlay::ClearState();
+            g_autoPlayEnabled = !g_autoPlayEnabled;
+            if (g_autoPlayEnabled) {
+                // Clear state sesuai mode
+                if (g_autoPlayMode == 0) {
+                    AutoPlay::ClearState();
+                } else {
+                    AutoPlayFast::ClearState();
+                }
+            }
         }
         bool hov = IsItemHovered();
 
         float r = size.x * 0.5f;
         ImDrawList* dl = GetWindowDrawList();
 
-        bool active = AutoPlay::bAutoPlaying;
+        bool active = g_autoPlayEnabled;
 
-        // ── Drawn icon — simple & clean ──────────────────────────────────────
-        // Outer glow
+        // ── Drawn icon ──
         ImU32 glowCol = active
             ? IM_COL32(0, 220, 120, hov ? 90 : 40)
             : IM_COL32(180, 30, 30, hov ? 90 : 40);
         dl->AddCircleFilled(center, r + 6.0f, glowCol);
 
-        // Main circle background
         ImU32 bgCol = active
             ? IM_COL32(12, 28, 20, 235)
             : IM_COL32(22, 12, 12, 235);
         dl->AddCircleFilled(center, r, bgCol);
 
-        // Border ring
         ImU32 ringCol = active
             ? IM_COL32(0, 210, 120, hov ? 255 : 200)
             : IM_COL32(200, 30, 30, hov ? 255 : 180);
         dl->AddCircle(center, r, ringCol, 0, 3.0f);
 
         if (active) {
-            // Pause icon — two vertical bars
+            // Pause icon
             float bH  = r * 0.52f;
             float bW  = r * 0.16f;
             float gap = r * 0.13f;
@@ -1181,7 +1309,7 @@ static void DrawToggleButton() {
             dl->AddRectFilled(ImVec2(lx,    ty), ImVec2(lx+bW, ty+bH), IM_COL32(0, 230, 140, 255), 2.0f);
             dl->AddRectFilled(ImVec2(rx,    ty), ImVec2(rx+bW, ty+bH), IM_COL32(0, 230, 140, 255), 2.0f);
         } else {
-            // Play icon — filled triangle ▶
+            // Play icon
             float hs = r * 0.36f;
             ImVec2 p0(center.x - hs * 0.45f, center.y - hs);
             ImVec2 p1(center.x - hs * 0.45f, center.y + hs);
@@ -1189,7 +1317,7 @@ static void DrawToggleButton() {
             dl->AddTriangleFilled(p0, p1, p2, IM_COL32(220, 60, 60, 255));
         }
 
-        // Small status label below icon
+        // Small status label
         const char* statusLbl = active ? "ON" : "OFF";
         ImVec2 tSz = CalcTextSize(statusLbl);
         ImU32  tCol = active ? IM_COL32(0,220,120,230) : IM_COL32(200,60,60,230);
