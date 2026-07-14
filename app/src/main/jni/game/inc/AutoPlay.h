@@ -752,7 +752,7 @@ namespace AutoPlay {
 
         if (isAnimationActive()) return;
 
-        if (!g_autoPlayEnabled || !sharedGameManager.mStateManager().isPlayerTurn()) {
+        if (!g_autoPlayEnabled || !bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             if (humanState != HUM_IDLE) return;
             if (state == EXECUTING) return;
             g_CurrentCandidate.idx = -1;
