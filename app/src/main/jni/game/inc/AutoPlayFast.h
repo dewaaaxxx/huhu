@@ -645,7 +645,7 @@ namespace AutoPlayFast {
                 DrawEightBallLoading(GetForegroundDrawList());
                 ScanSlow(0.003f);
             }
-        } } if (state == NOMINATING) {
+        } if (state == NOMINATING) {
             nominationFrameCounter++;
             if (nominationFrameCounter == 10) {
                 buttonClicker.Click(GetPocketScreenPos(g_CurrentCandidate.pocketIndex));
