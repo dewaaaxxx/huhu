@@ -1211,9 +1211,9 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
 // ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ //
 
-// ── DRAW TOGGLE BUTTON (VERSION 2) ──
-// ── DRAW TOGGLE BUTTON (VERSION 2) ──
+// ── DRAW TOGGLE BUTTON (FLOATING) ──
 static void DrawToggleButton() {
+    // Jangan tampilkan jika menu terbuka dan tidak diminimize
     if (g_menu.isOpen && !g_menu.isMinimized) return;
 
     ImGuiIO& io = GetIO();
@@ -1225,27 +1225,36 @@ static void DrawToggleButton() {
 
     float fixedX = io.DisplaySize.x - rightMargin - windowWidth;
 
+    // PASTIKAN posisi Y tidak 0
+    if (g_sideBtnsY <= 0.0f) {
+        g_sideBtnsY = io.DisplaySize.y - 150.0f; // Default posisi
+    }
+
     SetNextWindowSize(ImVec2(windowWidth, windowHeight), ImGuiCond_Always);
     SetNextWindowPos(ImVec2(fixedX, g_sideBtnsY), ImGuiCond_Always);
 
+    // Hapus background biar transparan
     PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
     PushStyleColor(ImGuiCol_Border,   IM_COL32(0, 0, 0, 0));
     PushStyleVar(ImGuiStyleVar_WindowRounding, 99.0f);
+    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
-    if (Begin(O("##ToggleBtn"), nullptr,
+    if (Begin("##ToggleBtn", nullptr,
               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove)) {
+              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | 
+              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground)) {
 
         ImVec2 pos = GetCursorScreenPos();
         ImVec2 size(button_size, button_size);
         ImVec2 center(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
 
-        // Gunakan Button biasa dengan background transparan
+        // ── BUTTON INTERAKSI ──
+        // Pake InvisibleButton biar bisa detect klik, tapi kita gambar sendiri visualnya
         PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
-        PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 255, 255, 20));
-        PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(255, 255, 255, 40));
+        PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 255, 255, 30));
+        PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(255, 255, 255, 60));
         
-        if (Button(O("##TglBtnHit"), size)) {
+        if (Button("##TglBtnHit", size)) {
             g_autoPlayEnabled = !g_autoPlayEnabled;
             persistent_bool["bAutoPlayEnabled"] = g_autoPlayEnabled;
             if (g_autoPlayEnabled) {
@@ -1265,24 +1274,28 @@ static void DrawToggleButton() {
 
         bool active = g_autoPlayEnabled;
 
-        // ── Drawn icon ──
+        // ── DRAW ICON ──
+        // Glow effect
         ImU32 glowCol = active
             ? IM_COL32(0, 220, 120, hov ? 90 : 40)
             : IM_COL32(180, 30, 30, hov ? 90 : 40);
         dl->AddCircleFilled(center, r + 6.0f, glowCol);
 
+        // Background circle
         ImU32 bgCol = active
             ? IM_COL32(12, 28, 20, 235)
             : IM_COL32(22, 12, 12, 235);
         dl->AddCircleFilled(center, r, bgCol);
 
+        // Border ring
         ImU32 ringCol = active
             ? IM_COL32(0, 210, 120, hov ? 255 : 200)
             : IM_COL32(200, 30, 30, hov ? 255 : 180);
         dl->AddCircle(center, r, ringCol, 0, 3.0f);
 
+        // Icon
         if (active) {
-            // Pause icon
+            // Pause icon (||)
             float bH  = r * 0.52f;
             float bW  = r * 0.16f;
             float gap = r * 0.13f;
@@ -1292,7 +1305,7 @@ static void DrawToggleButton() {
             dl->AddRectFilled(ImVec2(lx,    ty), ImVec2(lx+bW, ty+bH), IM_COL32(0, 230, 140, 255), 2.0f);
             dl->AddRectFilled(ImVec2(rx,    ty), ImVec2(rx+bW, ty+bH), IM_COL32(0, 230, 140, 255), 2.0f);
         } else {
-            // Play icon
+            // Play icon (▶)
             float hs = r * 0.36f;
             ImVec2 p0(center.x - hs * 0.45f, center.y - hs);
             ImVec2 p1(center.x - hs * 0.45f, center.y + hs);
@@ -1300,14 +1313,14 @@ static void DrawToggleButton() {
             dl->AddTriangleFilled(p0, p1, p2, IM_COL32(220, 60, 60, 255));
         }
 
-        // Small status label
+        // Status label "ON"/"OFF"
         const char* statusLbl = active ? "ON" : "OFF";
         ImVec2 tSz = CalcTextSize(statusLbl);
         ImU32  tCol = active ? IM_COL32(0,220,120,230) : IM_COL32(200,60,60,230);
         dl->AddText(ImVec2(center.x - tSz.x * 0.5f, center.y + r * 0.62f), tCol, statusLbl);
     }
     End();
-    PopStyleVar();
+    PopStyleVar(2);
     PopStyleColor(2);
 }
 
