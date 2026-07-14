@@ -194,6 +194,7 @@ namespace AutoPlay {
     static inline int humanNominationPocket = -1;
     static inline SpinPreset spinPreset = SPIN_CENTER;
     static inline bool bAutoSpin = false;
+    static inline bool g_autoPlayCalculating = false;
     // FIX ROOT CAUSE: Spin yang dipakai saat scan HARUS SAMA dengan spin saat tembak.
     // Kalau berbeda: simulasi scan → hasil A, simulasi display dengan spin lain → hasil B
     // → prediction line kelihatan masuk sebelum tembak, tapi setelah tembak meleset.
@@ -805,7 +806,7 @@ namespace AutoPlay {
             return;
         }
         
-        if (AreBallsMoving() && !executingShot) {
+        if (AreBallsMoving()) {
             if (state == SCANNING || state == NOMINATING) {
                 ClearState();
                 state = IDLE;
