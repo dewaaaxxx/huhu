@@ -18,18 +18,6 @@
 using namespace ImGui;
 using namespace std;
 
-namespace AutoPlay {
-    void ClearState();
-    void Update();
-}
-
-namespace AutoPlayFast {
-    void ClearState();
-    void Update();
-}
-
-static int g_autoPlayMode = 0; // 0 = Human, 1 = Fast
-
 struct MenuState {
     bool isOpen      = false;
     bool isMinimized = false;   // collapses to header-only bar
@@ -439,19 +427,9 @@ INLINE void DrawESP(ImDrawList* draw) {
         GameStateManager gameStateManager = sharedGameManager.mStateManager;
         if (!gameStateManager) return;
 
-       /* if (persistent_bool[O("bAutoPlay")]) {
+        if (persistent_bool[O("bAutoPlay")]) {
             DrawToggleButton();
             AutoPlay::Update();
-        }*/
-        
-        if (g_autoPlayEnabled) {
-            DrawToggleButton();
-            // Jalankan mode yang dipilih
-            if (g_autoPlayMode == 0) {
-                AutoPlay::Update();
-            } else {
-                AutoPlayFast::Update();
-            }
         }
 
 
@@ -475,29 +453,136 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-
-                if (ball.initialPosition != ball.predictedPosition) {
-                    ImVec2 lastPos{};
+                if (i == 0) continue; // Skip cue ball
+        
+                if (ball.initialPosition != ball.predictedPosition && ball.positions.size() > 1) {
                     float lineThick = (float)persistent_int[O("iLineThickness")];
                     if (lineThick < 1.f) lineThick = 1.f;
+                    
+                    // ── CEK JENIS BOLA ──
+                    bool isStripes = false;
+                    bool isSolid = false;
+                    
+                    // Bola 1-7 = solid, 9-15 = stripes, 8 = eight ball
+                    if (i >= 1 && i <= 7) isSolid = true;
+                    else if (i >= 9 && i <= 15) isStripes = true;
+                    else if (i == 8) {
+                        // Eight ball: warna khusus
+                    }
+                    
+                    // ── WARNA DASAR ──
+                    ImU32 baseColor = colors[i];
+                    
+                    // ── GAMBAR LINES DENGAN CORAK ──
+                    ImVec2 lastPos{};
+                    int pointCount = 0;
+                    
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
-                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
+                        
+                        if (lastPos.x || lastPos.y) {
+                            if (isStripes) {
+                                // ── STRIPES: Garis putih + warna bergantian ──
+                                // Gambar garis putih dulu (lebih tebal)
+                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 200), lineThick + 2.0f);
+                                // Gambar garis warna di atasnya (lebih tipis, putus-putus)
+                                draw->AddLine(lastPos, point, baseColor, lineThick);
+                                
+                                // Tambahin titik putih di sepanjang garis (efek corak)
+                                float segments = 8.0f;
+                                for (float t = 0.1f; t < 1.0f; t += 1.0f/segments) {
+                                    ImVec2 dotPos = ImLerp(lastPos, point, t);
+                                    draw->AddCircleFilled(dotPos, lineThick * 0.6f, IM_COL32(255, 255, 255, 180));
+                                }
+                            } else if (isSolid) {
+                                // ── SOLID: Garis solid dengan outline ──
+                                draw->AddLine(lastPos, point, IM_COL32(0, 0, 0, 180), lineThick + 3.0f);
+                                draw->AddLine(lastPos, point, baseColor, lineThick);
+                            } else {
+                                // ── BOLA LAIN (8 ball, dll) ──
+                                draw->AddLine(lastPos, point, baseColor, lineThick);
+                            }
+                        }
                         lastPos = point;
+                        pointCount++;
+                    }
+                    
+                    // ── GAMBAR NOMOR BOLA DI UJUNG PREDICTION ──
+                    if (pointCount > 0 && ball.positions.size() > 1) {
+                        // Ambil posisi terakhir dari prediction
+                        ImVec2 lastPoint = WorldToScreen(ball.positions.back());
+                        
+                        // Background nomor (biar kebaca)
+                        char numBuf[4];
+                        snprintf(numBuf, sizeof(numBuf), "%d", i);
+                        ImVec2 textSize = CalcTextSize(numBuf);
+                        
+                        // Background circle
+                        float circleRadius = 14.0f;
+                        draw->AddCircleFilled(lastPoint, circleRadius, IM_COL32(0, 0, 0, 200));
+                        draw->AddCircle(lastPoint, circleRadius, IM_COL32(255, 255, 255, 150), 0, 2.0f);
+                        
+                        // Warna text sesuai jenis bola
+                        ImU32 textColor;
+                        if (isStripes) {
+                            textColor = IM_COL32(255, 255, 255, 255);
+                        } else if (isSolid) {
+                            textColor = IM_COL32(255, 255, 255, 255);
+                        } else {
+                            textColor = IM_COL32(255, 255, 255, 255);
+                        }
+                        
+                        draw->AddText(ImVec2(lastPoint.x - textSize.x * 0.5f, 
+                                             lastPoint.y - textSize.y * 0.5f), 
+                                      textColor, numBuf);
                     }
                 }
             }
         }
-
+        
+        // ── BALL CIRCLES (TAPI KITA UBAH JADI LEBIH KEREN) ──
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-
+                if (i == 0) continue; // Skip cue ball
+        
                 if (ball.initialPosition != ball.predictedPosition) {
-                    float circleR = (float)persistent_int[O("iLineThickness")] + 1.f;
-                    if (circleR < 2.f) circleR = 2.f;
-                    draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
-                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
+                    float circleR = (float)persistent_int[O("iLineThickness")] + 3.f;
+                    if (circleR < 4.f) circleR = 4.f;
+                    
+                    ImVec2 screenPos = WorldToScreen(ball.predictedPosition);
+                    
+                    // Cek jenis bola
+                    bool isStripes = (i >= 9 && i <= 15);
+                    bool isSolid = (i >= 1 && i <= 7);
+                    
+                    if (isStripes) {
+                        // ── STRIPES: Lingkaran putih + warna strip ──
+                        // Background putih
+                        draw->AddCircleFilled(screenPos, circleR + 2.0f, IM_COL32(255, 255, 255, 200));
+                        // Warna solid di tengah (lebih kecil)
+                        draw->AddCircleFilled(screenPos, circleR * 0.6f, colors[i]);
+                        // Outline
+                        draw->AddCircle(screenPos, circleR + 2.0f, IM_COL32(255, 255, 255, 255), 0, 2.0f);
+                    } else if (isSolid) {
+                        // ── SOLID: Lingkaran penuh warna ──
+                        draw->AddCircleFilled(screenPos, circleR + 2.0f, IM_COL32(0, 0, 0, 180));
+                        draw->AddCircleFilled(screenPos, circleR, colors[i]);
+                        draw->AddCircle(screenPos, circleR, IM_COL32(255, 255, 255, 200), 0, 2.0f);
+                    } else {
+                        // ── BOLA LAIN ──
+                        draw->AddCircleFilled(screenPos, circleR, colors[i]);
+                        draw->AddCircle(screenPos, circleR, IM_COL32(255, 255, 255, 150), 0, 2.0f);
+                    }
+                    
+                    // ── TAMBAHKAN NOMOR DI TENGAH BOLA ──
+                    char numBuf[4];
+                    snprintf(numBuf, sizeof(numBuf), "%d", i);
+                    ImVec2 textSize = CalcTextSize(numBuf);
+                    ImU32 textColor = isStripes ? IM_COL32(0, 0, 0, 255) : IM_COL32(255, 255, 255, 255);
+                    draw->AddText(ImVec2(screenPos.x - textSize.x * 0.5f, 
+                                         screenPos.y - textSize.y * 0.5f), 
+                                  textColor, numBuf);
                 }
             }
         }
@@ -672,8 +757,8 @@ static void DrawContentArea(float winW, float winH) {
         case 0: {
             const MenuTheme& T1 = GetTheme();
             ImDrawList* dl1 = GetWindowDrawList();
-        
-            // ── helper: section header ──
+
+            // ── helper: section header ─────────────────────────────────────
             auto SectionHeader = [&](const char* title) {
                 Dummy(ImVec2(0, 6));
                 ImVec2 p = GetCursorScreenPos();
@@ -688,94 +773,37 @@ static void DrawContentArea(float winW, float winH) {
                 Dummy(ImVec2(0, 26.0f));
                 Dummy(ImVec2(0, 6));
             };
-        
+
+            // ── helper: StatusRow ──────────────────────────────────────────
+            auto StatusRow = [&](const char* key, const char* val, ImU32 valCol) {
+                float rowH2 = 36.0f;
+                ImVec2 p2   = GetCursorScreenPos();
+                float  w2   = GetContentRegionAvail().x;
+                dl1->AddText(p2, T1.textSecondary, key);
+                ImVec2 ks    = CalcTextSize(key);
+                float colonX = p2.x + ks.x + 6.0f;
+                dl1->AddText(ImVec2(colonX, p2.y), T1.textSecondary, ":");
+                dl1->AddText(ImVec2(colonX + 14.0f, p2.y), valCol, val);
+                Dummy(ImVec2(w2, rowH2));
+            };
+
+            // ═══════════════════════════════════════════════════
+            // SECTION: Draw  (paling atas)
+            // ═══════════════════════════════════════════════════
+            SectionHeader("Draw");
+            need_save |= ToggleSwitch(O("Draw Lines"),       &persistent_bool[O("bESP_DrawPredictionLine")]);
+            need_save |= ToggleSwitch(O("Draw Pockets"),     &persistent_bool[O("bESP_DrawPocketsShotState")]);
+            need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
+
+            // ═══════════════════════════════════════════════════
             // ═══════════════════════════════════════════════════
             // SECTION: Auto Play
             // ═══════════════════════════════════════════════════
-            SectionHeader("Auto Play");
-        
-            // ── TOGGLE ON/OFF ──
-            bool autoPlayChanged = false;
-            autoPlayChanged |= ToggleSwitch("Enable AutoPlay", &g_autoPlayEnabled);
-            if (autoPlayChanged) {
-                persistent_bool["bAutoPlayEnabled"] = g_autoPlayEnabled;
-                if (g_autoPlayEnabled) {
-                    if (g_autoPlayMode == 0) AutoPlay::ClearState();
-                    else AutoPlayFast::ClearState();
-                }
-            }
-            
-            // ── TAMPILKAN HANYA JIKA AUTOPLAY AKTIF ──
-            if (g_autoPlayEnabled) {
-                Dummy(ImVec2(0, 10));
-        
-                // ── TABS: Human | Fast ──
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
-                
-                ImVec4 tabBg = ImVec4(0.12f, 0.12f, 0.16f, 1.0f);
-                ImVec4 tabActiveBg = ImGui::ColorConvertU32ToFloat4(T1.accent);
-                ImVec4 tabActiveBgHov = ImVec4(tabActiveBg.x * 1.1f, tabActiveBg.y * 1.1f, tabActiveBg.z * 1.1f, 1.0f);
-                ImVec4 tabText = ImVec4(0.8f, 0.8f, 0.85f, 1.0f);
-                ImVec4 tabTextActive = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-                
-                float tabWidth = (GetContentRegionAvail().x - 10.0f) * 0.5f;
-                
-                // ── TAB HUMAN ──
-                PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
-                PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 0) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
-                PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 0) ? tabActiveBg : tabBg);
-                PushStyleColor(ImGuiCol_Text, (g_autoPlayMode == 0) ? tabTextActive : tabText);
-                
-                if (Button("Human", ImVec2(tabWidth, 40.0f))) {
-                    g_autoPlayMode = 0;
-                    if (g_autoPlayEnabled) {
-                        AutoPlayFast::ClearState();
-                        AutoPlay::ClearState();
-                    }
-                    persistent_int["iAutoPlayMode"] = 0;
-                }
-                PopStyleColor(4);
-                
-                SameLine(0, 10.0f);
-                
-                // ── TAB FAST ──
-                PushStyleColor(ImGuiCol_Button, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
-                PushStyleColor(ImGuiCol_ButtonHovered, (g_autoPlayMode == 1) ? tabActiveBgHov : ImVec4(0.18f, 0.18f, 0.22f, 1.0f));
-                PushStyleColor(ImGuiCol_ButtonActive, (g_autoPlayMode == 1) ? tabActiveBg : tabBg);
-                PushStyleColor(ImGuiCol_Text, (g_autoPlayMode == 1) ? tabTextActive : tabText);
-                
-                if (Button("Fast", ImVec2(tabWidth, 40.0f))) {
-                    g_autoPlayMode = 1;
-                    if (g_autoPlayEnabled) {
-                        AutoPlayFast::ClearState();
-                        AutoPlay::ClearState();
-                    }
-                    persistent_int["iAutoPlayMode"] = 1;
-                }
-                PopStyleColor(4);
-                
-                PopStyleVar(1);
-                
-                // ── INFO MODE ──
-                Dummy(ImVec2(0, 8));
-                const char* modeDesc = (g_autoPlayMode == 0) 
-                    ? "Human-like aiming & pulling (slower, realistic)" 
-                    : "Fast scanning & instant shooting";
-                ImVec4 descCol = (g_autoPlayMode == 0) 
-                    ? ImVec4(0.4f, 0.8f, 0.9f, 1.0f) 
-                    : ImVec4(0.9f, 0.8f, 0.3f, 1.0f);
-                TextColored(descCol, "%s", modeDesc);
-            }
-        
-            // ═══════════════════════════════════════════════════
-            // SECTION: Draw (ESP) - SELALU TAMPIL
-            // ═══════════════════════════════════════════════════
             Dummy(ImVec2(0, 8));
-            SectionHeader("Draw");
-            need_save |= ToggleSwitch("Draw Lines",       &persistent_bool["bESP_DrawPredictionLine"]);
-            need_save |= ToggleSwitch("Draw Pockets",     &persistent_bool["bESP_DrawPocketsShotState"]);
-            need_save |= ToggleSwitch("Show Enemy Lines", &persistent_bool["bEnemyLine"]);
-            
+            SectionHeader("Auto Play");
+            need_save |= ToggleSwitch(O("Auto Play"), &persistent_bool[O("bAutoPlay")]);
+
+            Dummy(ImVec2(0, 4));
             break;
         }
 
@@ -1038,14 +1066,6 @@ INLINE void DrawMenu(ImGuiIO& io) {
             if (!sigsetjmp(jump_buffer, 1)) DrawESP(GetBackgroundDrawList());
             jump_buffer_active = 0;
         }
-        
-        g_autoPlayMode = persistent_int["iAutoPlayMode"];
-        if (g_autoPlayMode < 0 || g_autoPlayMode > 1) {
-            g_autoPlayMode = 0;
-            persistent_int["iAutoPlayMode"] = 0;
-        }
-        
-        g_autoPlayEnabled = persistent_bool["bAutoPlayEnabled"];
 
         float targetAlpha = g_menu.isOpen ? 1.0f : 0.0f;
         if (g_menu.isOpen) {
@@ -1200,9 +1220,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
 
 // ــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــــ //
 
-// ── DRAW TOGGLE BUTTON (FLOATING) ──
 static void DrawToggleButton() {
-    // Jangan tampilkan jika menu terbuka
     if (g_menu.isOpen && !g_menu.isMinimized) return;
 
     ImGuiIO& io = GetIO();
@@ -1214,66 +1232,40 @@ static void DrawToggleButton() {
 
     float fixedX = io.DisplaySize.x - rightMargin - windowWidth;
 
-    if (g_sideBtnsY <= 0.0f) {
-        g_sideBtnsY = io.DisplaySize.y - 150.0f;
-    }
-
     SetNextWindowSize(ImVec2(windowWidth, windowHeight), ImGuiCond_Always);
     SetNextWindowPos(ImVec2(fixedX, g_sideBtnsY), ImGuiCond_Always);
 
     PushStyleColor(ImGuiCol_WindowBg, IM_COL32(0, 0, 0, 0));
     PushStyleColor(ImGuiCol_Border,   IM_COL32(0, 0, 0, 0));
     PushStyleVar(ImGuiStyleVar_WindowRounding, 99.0f);
-    PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 
-    if (Begin("##ToggleBtn", nullptr,
+    if (Begin(O("##ToggleBtn"), nullptr,
               ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | 
-              ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground)) {
+              ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove)) {
 
         ImVec2 pos = GetCursorScreenPos();
         ImVec2 size(button_size, button_size);
         ImVec2 center(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
 
-        // ── BUTTON INTERAKSI ──
-        PushStyleColor(ImGuiCol_Button, IM_COL32(0, 0, 0, 0));
-        PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(255, 255, 255, 30));
-        PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(255, 255, 255, 60));
-        
-        // Tombol selalu aktif, tapi hanya toggle jika g_autoPlayEnabled true
-        if (Button("##TglBtnHit", size)) {
-            if (g_autoPlayEnabled) {
-                // Jika aktif, matikan
-                g_autoPlayEnabled = false;
-                persistent_bool["bAutoPlayEnabled"] = false;
-                LOGI("[AUTOPLAY] Disabled via floating button");
-            } else {
-                // Jika mati, hidupkan
-                g_autoPlayEnabled = true;
-                persistent_bool["bAutoPlayEnabled"] = true;
-                LOGI("[AUTOPLAY] Enabled via floating button");
-                if (g_autoPlayMode == 0) {
-                    AutoPlay::ClearState();
-                } else {
-                    AutoPlayFast::ClearState();
-                }
-            }
+        if (InvisibleButton(O("##TglBtnHit"), size)) {
+            AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
+            if (AutoPlay::bAutoPlaying) AutoPlay::ClearState();
         }
-        PopStyleColor(3);
-        
         bool hov = IsItemHovered();
-        bool active = g_autoPlayEnabled;
+
         float r = size.x * 0.5f;
         ImDrawList* dl = GetWindowDrawList();
 
-        // ── DRAW ICON ──
-        // Glow effect
+        bool active = AutoPlay::bAutoPlaying;
+
+        // ── Drawn icon — simple & clean ──────────────────────────────────────
+        // Outer glow
         ImU32 glowCol = active
             ? IM_COL32(0, 220, 120, hov ? 90 : 40)
             : IM_COL32(180, 30, 30, hov ? 90 : 40);
         dl->AddCircleFilled(center, r + 6.0f, glowCol);
 
-        // Background circle
+        // Main circle background
         ImU32 bgCol = active
             ? IM_COL32(12, 28, 20, 235)
             : IM_COL32(22, 12, 12, 235);
@@ -1285,9 +1277,8 @@ static void DrawToggleButton() {
             : IM_COL32(200, 30, 30, hov ? 255 : 180);
         dl->AddCircle(center, r, ringCol, 0, 3.0f);
 
-        // Icon
         if (active) {
-            // Pause icon (||)
+            // Pause icon — two vertical bars
             float bH  = r * 0.52f;
             float bW  = r * 0.16f;
             float gap = r * 0.13f;
@@ -1297,7 +1288,7 @@ static void DrawToggleButton() {
             dl->AddRectFilled(ImVec2(lx,    ty), ImVec2(lx+bW, ty+bH), IM_COL32(0, 230, 140, 255), 2.0f);
             dl->AddRectFilled(ImVec2(rx,    ty), ImVec2(rx+bW, ty+bH), IM_COL32(0, 230, 140, 255), 2.0f);
         } else {
-            // Play icon (▶)
+            // Play icon — filled triangle ▶
             float hs = r * 0.36f;
             ImVec2 p0(center.x - hs * 0.45f, center.y - hs);
             ImVec2 p1(center.x - hs * 0.45f, center.y + hs);
@@ -1305,14 +1296,14 @@ static void DrawToggleButton() {
             dl->AddTriangleFilled(p0, p1, p2, IM_COL32(220, 60, 60, 255));
         }
 
-        // Status label "ON"/"OFF"
+        // Small status label below icon
         const char* statusLbl = active ? "ON" : "OFF";
         ImVec2 tSz = CalcTextSize(statusLbl);
         ImU32  tCol = active ? IM_COL32(0,220,120,230) : IM_COL32(200,60,60,230);
         dl->AddText(ImVec2(center.x - tSz.x * 0.5f, center.y + r * 0.62f), tCol, statusLbl);
     }
     End();
-    PopStyleVar(2);
+    PopStyleVar();
     PopStyleColor(2);
 }
 
