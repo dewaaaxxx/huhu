@@ -171,6 +171,73 @@ static bool SidebarButton(const char* label, GLuint iconTex, bool selected,
     return pressed;
 }
 
+static bool CmCombo(const char* label, const char* sub, int* val, const char* items_z) {
+    ImGuiWindow* window = GetCurrentWindow();
+    if (window->SkipItems) return false;
+    
+    // ── AMBIL TEMA AKTIF ──
+    const MenuTheme& T = GetTheme();
+    ImU32 accentColor = T.accent;
+    ImU32 accentBright = IM_COL32(
+        (accentColor >> 0 & 0xFF) + 40,
+        (accentColor >> 8 & 0xFF) + 40,
+        (accentColor >> 16 & 0xFF) + 40,
+        255
+    );
+    
+    ImVec2 pos = window->DC.CursorPos;
+    float rowH = 64.0f;
+    ImVec2 size = ImVec2(GetContentRegionAvail().x, rowH);
+    const ImRect bb(pos, pos + size);
+
+    ImDrawList* dl = window->DrawList;
+    
+    // ── BACKGROUND ──
+    dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(26, 38, 58, 180), 12.0f);
+    dl->AddRect(bb.Min, bb.Max, IM_COL32(55, 70, 95, 120), 12.0f, 0, 1.0f);
+    
+    // ── ACCENT LINE DI KIRI (PAKAI WARNA TEMA) ──
+    dl->AddRectFilled(
+        ImVec2(bb.Min.x, bb.Min.y + 4),
+        ImVec2(bb.Min.x + 3, bb.Max.y - 4),
+        accentColor, 2.0f
+    );
+
+    // ── LABEL ──
+    ImVec2 ts = CalcTextSize(label);
+    dl->AddText(ImVec2(bb.Min.x + 18, bb.Min.y + 12), T.textPrimary, label);
+    
+    if (sub && sub[0] != '\0') {
+        dl->AddText(ImVec2(bb.Min.x + 18, bb.Min.y + 12 + ts.y + 4), T.textSecondary, sub);
+    }
+
+    // ── COMBO ──
+    SetCursorScreenPos(ImVec2(bb.Max.x - 180 - 18, bb.Min.y + (rowH - 30) * 0.5f));
+    
+    // Warna dropdown ngikutin tema
+    ImVec4 accentF = ImGui::ColorConvertU32ToFloat4(accentColor);
+    ImVec4 accentBrightF = ImGui::ColorConvertU32ToFloat4(accentBright);
+    
+    PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(35, 50, 75, 255));
+    PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(45, 62, 90, 255));
+    PushStyleColor(ImGuiCol_FrameBgActive,  IM_COL32(50, 68, 100, 255));
+    PushStyleColor(ImGuiCol_Button,         accentColor);
+    PushStyleColor(ImGuiCol_Text,           T.textPrimary);
+    PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+    PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 6));
+    
+    SetNextItemWidth(180);
+    bool changed = Combo((std::string("##cb_") + label).c_str(), val, items_z);
+    
+    PopStyleVar(2);
+    PopStyleColor(5);
+
+    Dummy(ImVec2(0, 0));
+    SetCursorScreenPos(ImVec2(bb.Min.x, bb.Max.y + 4));
+    
+    return changed;
+}
+
 static bool ToggleSwitch(const char* label, bool* v) {
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems) return false;
@@ -449,140 +516,48 @@ INLINE void DrawESP(ImDrawList* draw) {
                 }
             }
         }
-
+        
+        // ── BACA LINE STYLE ──
+        int lineStyle = persistent_int["iLineStyle"];
+        if (lineStyle < 0 || lineStyle > 1) lineStyle = 0;
+        
+        float lineThick = (float)persistent_int[O("iLineThickness")];
+        if (lineThick < 1.f) lineThick = 1.f;
+        
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-                if (i == 0) continue; // Skip cue ball
-        
-                if (ball.initialPosition != ball.predictedPosition && ball.positions.size() > 1) {
-                    float lineThick = (float)persistent_int[O("iLineThickness")];
-                    if (lineThick < 1.f) lineThick = 1.f;
-                    
-                    // ── CEK JENIS BOLA ──
-                    bool isStripes = false;
-                    bool isSolid = false;
-                    
-                    // Bola 1-7 = solid, 9-15 = stripes, 8 = eight ball
-                    if (i >= 1 && i <= 7) isSolid = true;
-                    else if (i >= 9 && i <= 15) isStripes = true;
-                    else if (i == 8) {
-                        // Eight ball: warna khusus
-                    }
-                    
-                    // ── WARNA DASAR ──
-                    ImU32 baseColor = colors[i];
-                    
-                    // ── GAMBAR LINES DENGAN CORAK ──
+                if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
-                    int pointCount = 0;
-                    
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
-                        
                         if (lastPos.x || lastPos.y) {
-                            if (isStripes) {
-                                // ── STRIPES: Garis putih + warna bergantian ──
-                                // Gambar garis putih dulu (lebih tebal)
-                                draw->AddLine(lastPos, point, IM_COL32(255, 255, 255, 200), lineThick + 2.0f);
-                                // Gambar garis warna di atasnya (lebih tipis, putus-putus)
-                                draw->AddLine(lastPos, point, baseColor, lineThick);
-                                
-                                // Tambahin titik putih di sepanjang garis (efek corak)
-                                float segments = 8.0f;
-                                for (float t = 0.1f; t < 1.0f; t += 1.0f/segments) {
-                                    ImVec2 dotPos = ImLerp(lastPos, point, t);
-                                    draw->AddCircleFilled(dotPos, lineThick * 0.6f, IM_COL32(255, 255, 255, 180));
+                            if (lineStyle == 1) {
+                                // DOTTED
+                                float dx = point.x - lastPos.x, dy = point.y - lastPos.y;
+                                float len = sqrtf(dx*dx + dy*dy);
+                                int steps = (int)(len / 14.0f);
+                                if (steps < 1) steps = 1;
+                                for (int s = 0; s <= steps; s++) {
+                                    float k = (float)s / (float)steps;
+                                    ImVec2 p(lastPos.x + dx*k, lastPos.y + dy*k);
+                                    draw->AddCircleFilled(p, 3.5f, colors[i]);
+                                    draw->AddCircleFilled(p, 1.8f, IM_COL32(255,255,255,255));
                                 }
-                            } else if (isSolid) {
-                                // ── SOLID: Garis solid dengan outline ──
-                                draw->AddLine(lastPos, point, IM_COL32(0, 0, 0, 180), lineThick + 3.0f);
-                                draw->AddLine(lastPos, point, baseColor, lineThick);
                             } else {
-                                // ── BOLA LAIN (8 ball, dll) ──
-                                draw->AddLine(lastPos, point, baseColor, lineThick);
+                                // SOLID
+                                draw->AddLine(lastPos, point, colors[i], lineThick);
                             }
                         }
                         lastPos = point;
-                        pointCount++;
-                    }
-                    
-                    // ── GAMBAR NOMOR BOLA DI UJUNG PREDICTION ──
-                    if (pointCount > 0 && ball.positions.size() > 1) {
-                        // Ambil posisi terakhir dari prediction
-                        ImVec2 lastPoint = WorldToScreen(ball.positions.back());
-                        
-                        // Background nomor (biar kebaca)
-                        char numBuf[4];
-                        snprintf(numBuf, sizeof(numBuf), "%d", i);
-                        ImVec2 textSize = CalcTextSize(numBuf);
-                        
-                        // Background circle
-                        float circleRadius = 14.0f;
-                        draw->AddCircleFilled(lastPoint, circleRadius, IM_COL32(0, 0, 0, 200));
-                        draw->AddCircle(lastPoint, circleRadius, IM_COL32(255, 255, 255, 150), 0, 2.0f);
-                        
-                        // Warna text sesuai jenis bola
-                        ImU32 textColor;
-                        if (isStripes) {
-                            textColor = IM_COL32(255, 255, 255, 255);
-                        } else if (isSolid) {
-                            textColor = IM_COL32(255, 255, 255, 255);
-                        } else {
-                            textColor = IM_COL32(255, 255, 255, 255);
-                        }
-                        
-                        draw->AddText(ImVec2(lastPoint.x - textSize.x * 0.5f, 
-                                             lastPoint.y - textSize.y * 0.5f), 
-                                      textColor, numBuf);
                     }
                 }
             }
-        }
-        
-        // ── BALL CIRCLES (TAPI KITA UBAH JADI LEBIH KEREN) ──
-        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-                if (i == 0) continue; // Skip cue ball
-        
                 if (ball.initialPosition != ball.predictedPosition) {
-                    float circleR = (float)persistent_int[O("iLineThickness")] + 3.f;
-                    if (circleR < 4.f) circleR = 4.f;
-                    
-                    ImVec2 screenPos = WorldToScreen(ball.predictedPosition);
-                    
-                    // Cek jenis bola
-                    bool isStripes = (i >= 9 && i <= 15);
-                    bool isSolid = (i >= 1 && i <= 7);
-                    
-                    if (isStripes) {
-                        // ── STRIPES: Lingkaran putih + warna strip ──
-                        // Background putih
-                        draw->AddCircleFilled(screenPos, circleR + 2.0f, IM_COL32(255, 255, 255, 200));
-                        // Warna solid di tengah (lebih kecil)
-                        draw->AddCircleFilled(screenPos, circleR * 0.6f, colors[i]);
-                        // Outline
-                        draw->AddCircle(screenPos, circleR + 2.0f, IM_COL32(255, 255, 255, 255), 0, 2.0f);
-                    } else if (isSolid) {
-                        // ── SOLID: Lingkaran penuh warna ──
-                        draw->AddCircleFilled(screenPos, circleR + 2.0f, IM_COL32(0, 0, 0, 180));
-                        draw->AddCircleFilled(screenPos, circleR, colors[i]);
-                        draw->AddCircle(screenPos, circleR, IM_COL32(255, 255, 255, 200), 0, 2.0f);
-                    } else {
-                        // ── BOLA LAIN ──
-                        draw->AddCircleFilled(screenPos, circleR, colors[i]);
-                        draw->AddCircle(screenPos, circleR, IM_COL32(255, 255, 255, 150), 0, 2.0f);
-                    }
-                    
-                    // ── TAMBAHKAN NOMOR DI TENGAH BOLA ──
-                    char numBuf[4];
-                    snprintf(numBuf, sizeof(numBuf), "%d", i);
-                    ImVec2 textSize = CalcTextSize(numBuf);
-                    ImU32 textColor = isStripes ? IM_COL32(0, 0, 0, 255) : IM_COL32(255, 255, 255, 255);
-                    draw->AddText(ImVec2(screenPos.x - textSize.x * 0.5f, 
-                                         screenPos.y - textSize.y * 0.5f), 
-                                  textColor, numBuf);
+                    draw->AddCircle(WorldToScreen(ball.initialPosition), 20, colors[i], 0, 6.f);
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 20, colors[i]);
                 }
             }
         }
@@ -646,6 +621,7 @@ static void svConfig_Save() {
     FILE* f = fopen(path.c_str(), O("w"));
     if (!f) return;
     fprintf(f, O("iLineThickness=%d\n"),  persistent_int[O("iLineThickness")]);
+      fprintf(f, O("iLineStyle=%d\n"),  persistent_int[O("iLineStyle")]);
       fprintf(f, O("iMenuSizeOffset=%d\n"), persistent_int[O("iMenuSizeOffset")]);
       fprintf(f, O("fAutoPlayPower=%.1f\n"),   persistent_float[O("fAutoPlayPower")]);
       fprintf(f, O("fAutoPlayDelay=%.2f\n"),   persistent_float[O("fAutoPlayShotDelayMax")]);
@@ -663,6 +639,7 @@ static void svConfig_Load() {
         int v = 0;
         if (sscanf(line, O("iLineThickness=%d"),  &v) == 1) { persistent_int[O("iLineThickness")]  = v; continue; }
           if (sscanf(line, O("iMenuSizeOffset=%d"), &v) == 1) { persistent_int[O("iMenuSizeOffset")] = v; continue; }
+          if (sscanf(line, O("iLineStyle=%d"),      &v) == 1) { persistent_int[O("iLineStyle")]      = v; continue; } // <-- TAMBAH INI
           float fv__; int bv__;
           if (sscanf(line, O("fAutoPlayPower=%f"),  &fv__) == 1) { persistent_float[O("fAutoPlayPower")]        = fv__; continue; }
           if (sscanf(line, O("fAutoPlayDelay=%f"),  &fv__) == 1) { persistent_float[O("fAutoPlayShotDelayMax")] = fv__; continue; }
@@ -794,6 +771,14 @@ static void DrawContentArea(float winW, float winH) {
             need_save |= ToggleSwitch(O("Draw Lines"),       &persistent_bool[O("bESP_DrawPredictionLine")]);
             need_save |= ToggleSwitch(O("Draw Pockets"),     &persistent_bool[O("bESP_DrawPocketsShotState")]);
             need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
+            if (persistent_int["iLineStyle"] < 0 || persistent_int["iLineStyle"] > 1) {
+                persistent_int["iLineStyle"] = 0;
+            }
+            
+            const char* items = "SOLID\0DOTTED\0";
+            if (CmCombo("Line Style", "Choose prediction line style", &persistent_int["iLineStyle"], items)) {
+                need_save = true;
+            }
 
             // ═══════════════════════════════════════════════════
             // ═══════════════════════════════════════════════════
