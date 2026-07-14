@@ -153,6 +153,15 @@ namespace AutoPlay {
     
     static inline float powerMin = 100.0f;
     static inline float powerMax = 666.0f;
+    static inline SpinPreset spinPreset = SPIN_CENTER;
+    static inline bool bAutoSpin = false;
+    // FIX ROOT CAUSE: Spin yang dipakai saat scan HARUS SAMA dengan spin saat tembak.
+    // Kalau berbeda: simulasi scan → hasil A, simulasi display dengan spin lain → hasil B
+    // → prediction line kelihatan masuk sebelum tembak, tapi setelah tembak meleset.
+    // Solusi: lock spin pada saat scan dimulai, gunakan spin yang sama untuk semua
+    // determineShotResult call (scan, display, tembak) sampai shot selesai.
+    static inline Vec2d lockedShotSpin = {0.0, 0.0};
+    static inline bool spinIsLocked = false;
     
     static FrictionProperties cachedFriction = {0.2, 0.0111, 0.025, 0.0014577259475218659, 196, 10.878, 9.8};
     
@@ -162,6 +171,20 @@ namespace AutoPlay {
     } scan = FAST;
 
     bool shouldAutoPlay() { return !didSetAngle || lastSetAngle == sharedGameManager.mVisualCue().mVisualGuide().mAimAngle(); }
+    
+    void applyAutoSpin() {
+        if (!bAutoSpin) return;
+        Vec2d spin = {0.0, 0.0};
+        constexpr double s = 0.7;
+        switch (spinPreset) {
+            case SPIN_TOP:    spin = {0.0,  s}; break;
+            case SPIN_BOTTOM: spin = {0.0, -s}; break;
+            case SPIN_LEFT:   spin = {-s,  0.0}; break;
+            case SPIN_RIGHT:  spin = { s,  0.0}; break;
+            case SPIN_CENTER: spin = {0.0, 0.0}; break;
+        }
+        sharedGameManager.mVisualEnglishControl().mEnglish(spin);
+    }
 
     void setAimAngle(double angle) {
         lastSetAngle = angle;
@@ -170,7 +193,7 @@ namespace AutoPlay {
 
     void takeShot(double angle, double power) {
         setAimAngle(angle);
-        gPrediction->determineShotResult(false, angle, power);
+        gPrediction->determineShotResult(true, angle, power);
 
         sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
         M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
@@ -179,11 +202,12 @@ namespace AutoPlay {
     void ClearState() {
         g_CurrentCandidate.idx = -1;
         lastFailedCuePos = { -1000.0, -1000.0 };
+        spinIsLocked = false; // Unlock spin supaya scan berikutnya lock spin fresh
     }
     
     void Shoot(double angle, double power = 0.f) {
         setAimAngle(angle);
-        gPrediction->determineShotResult(false, angle, power);
+        gPrediction->determineShotResult(true, angle, power);
 
         bool nominating = false;
         int nominationMode = sharedGameManager.getPocketNominationMode();
@@ -218,6 +242,11 @@ namespace AutoPlay {
             currentScanAngle = 0.0;
             isScanning = true;
             lastScanCuePos = gPrediction->guiData.balls[0].initialPosition;
+            if (!spinIsLocked) {
+                if (bAutoSpin) applyAutoSpin();
+                lockedShotSpin = sharedGameManager.getShotSpin();
+                spinIsLocked = true;
+            }
         }
 
         Ball::Classification myclass = sharedGameManager.getPlayerClassification();
@@ -357,6 +386,12 @@ namespace AutoPlay {
     void ScanFast(double angleStep = 0.1f) {
         if (g_CurrentCandidate.idx != -1) return;
         if (gPrediction->guiData.balls[0].initialPosition == lastFailedCuePos) return;
+        
+        if (!spinIsLocked) {
+            if (bAutoSpin) applyAutoSpin();
+            lockedShotSpin = sharedGameManager.getShotSpin();
+            spinIsLocked = true;
+        }
 
         double startingAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
         
