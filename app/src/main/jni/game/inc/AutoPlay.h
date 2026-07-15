@@ -246,9 +246,9 @@ namespace AutoPlay {
             state = NOMINATING;
             nominationFrameCounter = 0;
         } else {
+            pendingShotPower = power;
+            pendingShotAngle = angle;
             takeShot(angle, power);
-            ClearState();
-            state = IDLE;
         }
     }
 
