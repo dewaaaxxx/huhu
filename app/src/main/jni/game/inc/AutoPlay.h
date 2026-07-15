@@ -213,14 +213,13 @@ namespace AutoPlay {
         int  steps     = 0;
         int  collected = 0;
 
-        while (steps < 16 && currentScanAngle < maxAngle) {
+        while (steps < 25 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
 
-            // Try 3 powers per angle: derived from shot distance where possible,
-            // otherwise use fixed medium values for safety.
-            const double POWERS[3] = { 200.0, 320.0, 420.0 };
+            // Power sweep lebih lengkap: cover semua range dari pelan sampai max
+            const double POWERS[] = { 150.0, 220.0, 300.0, 380.0, 460.0, 540.0, 620.0, 666.0 };
 
             for (double power : POWERS) {
                 Candidate dummy = { -1 };
@@ -489,14 +488,44 @@ namespace AutoPlay {
         for (const auto& cand : candidates) {
             if ((int)validShots.size() >= 5) break;
 
-            double angle = NumberUtils::normalizeDoublePrecision(normalizeAngle(cand.angle));
+            // ── Angle refinement: coba beberapa offset kecil sekitar angle kandidat ──
+            constexpr double angleOffsets[] = {0.0, -0.003, +0.003, -0.007, +0.007, -0.012, +0.012, -0.018, +0.018};
+            double bestAngle = cand.angle;
+            double bestPower = cand.power;
+            bool   foundValid = false;
 
-            // CALL 1: verify
-            gPrediction->determineShotResult(true, angle, cand.power, 0.0, cand);
+            for (double dA : angleOffsets) {
+                double tryAngle = NumberUtils::normalizeDoublePrecision(
+                    normalizeAngle(cand.angle + dA));
+
+                // ── Power sweep: coba beberapa level power per angle ──────────────
+                constexpr double powerFactors[] = {1.0, 1.05, 0.95, 1.12, 0.88, 1.2, 0.82, 1.35, 0.7, 1.5, 0.55};
+                for (double pf : powerFactors) {
+                    double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
+
+                    gPrediction->determineShotResult(true, tryAngle, tryPower, 0.0, cand);
+                    if (!isLegalPot(cand)) continue;
+
+                    // Valid — simpan kombinasi terbaik (prioritas power paling rendah)
+                    if (!foundValid || tryPower < bestPower) {
+                        bestAngle  = tryAngle;
+                        bestPower  = tryPower;
+                        foundValid = true;
+                    }
+                    // Kalau sudah ketemu di power 1.0 dan angle 0.0, langsung pakai
+                    if (dA == 0.0 && pf == 1.0) goto useFound;
+                    break; // ketemu di power ini, skip power berikutnya untuk angle ini
+                }
+                if (foundValid && dA == 0.0) break; // angle pas, tidak perlu coba offset
+            }
+            useFound:
+            if (!foundValid) continue;
+
+            // Verify final dengan angle+power terbaik
+            gPrediction->determineShotResult(true, bestAngle, bestPower, 0.0, cand);
             if (!isLegalPot(cand)) continue;
 
             if (isNineBall) {
-                // 9-ball: resolve bestPotted index
                 int bestPotted = -1;
                 for (int i = 1; i < gPrediction->guiData.ballsCount; i++) {
                     auto& b = gPrediction->guiData.balls[i];
@@ -509,18 +538,17 @@ namespace AutoPlay {
                 Candidate c9 = cand;
                 c9.idx = bestPotted;
                 c9.pocketIndex = gPrediction->guiData.balls[bestPotted].pocketIndex;
-                validShots.push_back({c9, angle, cand.power, cand.score, 0});
+                validShots.push_back({c9, bestAngle, bestPower, cand.score, 0});
                 continue;
             }
 
-            // 8-ball: try softer powers (CALLS 2-4)
-            double bestPower = cand.power;
-            const double pTry[3] = { cand.power * 0.70, cand.power * 0.82, cand.power * 0.92 };
+            // 8-ball: try softer powers
+            const double pTry[3] = { bestPower * 0.70, bestPower * 0.82, bestPower * 0.92 };
             for (int pi = 0; pi < 3; pi++) {
                 double rp = pTry[pi];
                 if (rp < 80.0) rp = 80.0;
                 if (rp >= bestPower) continue;
-                gPrediction->determineShotResult(true, angle, rp, 0.0, cand);
+                gPrediction->determineShotResult(true, bestAngle, rp, 0.0, cand);
                 if (gPrediction->firstHitIsTarget &&
                     gPrediction->guiData.balls[0].onTable &&
                     !gPrediction->guiData.balls[cand.idx].onTable &&
@@ -530,7 +558,7 @@ namespace AutoPlay {
                 }
             }
 
-            validShots.push_back({cand, angle, bestPower, cand.score, 0});
+            validShots.push_back({cand, bestAngle, bestPower, cand.score, 0});
         }
 
         if (validShots.empty()) {
@@ -664,6 +692,24 @@ namespace AutoPlay {
     void Update() {
         buttonClicker.Update();
         if (isAnimationActive()) return;
+
+        // PREDICTION LINES — harus dipanggil tiap frame sebelum early return
+        // isAuto=false → positions di-track → lines tampil
+        if (sharedGameManager && gPrediction) {
+            double dispAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+            double dispPower = sharedGameManager.mVisualCue().getShotPower(false);
+            if (dispPower < 10.0) dispPower = 400.0;
+            // Kalau sudah ada kandidat, tampilkan simulasi kandidat biar lines akurat
+            if (g_CurrentCandidate.idx != -1) {
+                gPrediction->determineShotResult(false,
+                    g_CurrentCandidate.angle,
+                    g_CurrentCandidate.power,
+                    0.0,
+                    g_CurrentCandidate);
+            } else {
+                gPrediction->determineShotResult(false, dispAngle, dispPower, 0.0);
+            }
+        }
 
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             if (state != IDLE) {
