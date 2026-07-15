@@ -339,6 +339,115 @@ INLINE void DrawExpired(ImGuiIO& io) {
 static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
 
 static void DrawLiveStatusOverlay(ImGuiIO& io) {
+    if (!g_autoPlayEnabled) return;
+
+    // ================================================================
+    // 1. STATE AUTOPLAY
+    // ================================================================
+    const char* stateStr = "Idle";
+    switch (AutoPlay::state) {
+        case AutoPlay::SCANNING:   stateStr = "Scanning";   break;
+        case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
+        case AutoPlay::EXECUTING:  stateStr = "Executing";  break;
+        default:                   stateStr = "Idle";       break;
+    }
+
+    // ================================================================
+    // 2. SHOT FOUND & POCKET
+    // ================================================================
+    bool hasCandidate = (g_CurrentCandidate.idx != -1);
+    bool isScanning = (AutoPlay::state == AutoPlay::SCANNING);
+    bool isExecuting = (AutoPlay::state == AutoPlay::EXECUTING);
+    
+    // Ambil pocket index
+    int pocketIdx = g_CurrentCandidate.pocketIndex;
+    const char* pocketName = "?";
+    if (pocketIdx >= 0 && pocketIdx < 6) {
+        const char* pocketNames[] = {"Top Left", "Top Right", "Middle Left", 
+                                     "Middle Right", "Bottom Left", "Bottom Right"};
+        pocketName = pocketNames[pocketIdx];
+    }
+
+    // ================================================================
+    // 3. WINDOW SETUP
+    // ================================================================
+    const float padH  = 24.0f;
+    const float padV  = 24.0f;
+
+    SetNextWindowPos(
+        ImVec2(padH, io.DisplaySize.y - padV),
+        ImGuiCond_Always,
+        ImVec2(0.0f, 1.0f)
+    );
+
+    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(14, 14, 18, 185));
+    PushStyleColor(ImGuiCol_Border,   IM_COL32(60, 60, 80, 120));
+    PushStyleVar(ImGuiStyleVar_WindowRounding,  12.0f);
+    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    PushStyleVar(ImGuiStyleVar_WindowPadding,   ImVec2(14.0f, 10.0f));
+
+    if (Begin(O("##LiveStatus"), nullptr,
+              ImGuiWindowFlags_NoTitleBar   | ImGuiWindowFlags_NoResize    |
+              ImGuiWindowFlags_NoMove       | ImGuiWindowFlags_NoScrollbar |
+              ImGuiWindowFlags_NoInputs     | ImGuiWindowFlags_NoSavedSettings |
+              ImGuiWindowFlags_AlwaysAutoResize)) {
+
+        ImDrawList* dl = GetWindowDrawList();
+        ImVec2 wp = GetWindowPos();
+        ImVec2 ws = GetWindowSize();
+
+        // ================================================================
+        // ACCENT BAR
+        // ================================================================
+        ImU32 accentCol;
+        if (hasCandidate) {
+            accentCol = IM_COL32(0, 255, 0, 255);      // Hijau = Shot Found
+        } else if (isScanning || isExecuting) {
+            accentCol = IM_COL32(0, 200, 255, 255);    // Biru = Scanning/Executing
+        } else {
+            accentCol = IM_COL32(100, 100, 100, 180);  // Abu = Idle
+        }
+        dl->AddRectFilled(wp, ImVec2(wp.x + 3.0f, wp.y + ws.y), accentCol, 12.0f, ImDrawFlags_RoundCornersLeft);
+
+        SetWindowFontScale(0.95f);
+
+        // ================================================================
+        // BARIS 1: STATUS UTAMA
+        // ================================================================
+        if (hasCandidate) {
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), "Shot Found!");
+        } else {
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 50, 50, 255)), "No Shot Found!"); // <-- MERAH
+        }
+
+        // ================================================================
+        // BARIS 2: STATE
+        // ================================================================
+        ImU32 stateCol = (AutoPlay::state != AutoPlay::IDLE)
+            ? IM_COL32(0, 200, 255, 255)
+            : IM_COL32(130, 130, 145, 255);
+        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), "State : ");
+        SameLine(0, 0);
+        TextColored(ImGui::ColorConvertU32ToFloat4(stateCol), stateStr);
+
+        // ================================================================
+        // BARIS 3: POCKET (HANYA JIKA SHOT FOUND)
+        // ================================================================
+        if (hasCandidate) {
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), "Pocket : ");
+            SameLine(0, 0);
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 255, 255)), "%d", pocketIdx);
+        }
+        
+        SetWindowFontScale(1.0f);
+    }
+    End();
+
+    PopStyleVar(3);
+    PopStyleColor(2);
+}
+
+/*static void DrawLiveStatusOverlay(ImGuiIO& io) {
     if (!persistent_bool[O("bAutoPlay")]) return;
 
     // ================================================================
@@ -366,7 +475,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         case AutoPlay::HUM_PULLING:         humanStr = "Pulling"; break;
         case AutoPlay::HUM_DELAY_BEFORE_SHOT: humanStr = "Delay"; break;
         default:                            humanStr = "Idle"; break;
-    }*/
+    }
 
     // ================================================================
     // 3. SHOT FOUND
@@ -447,7 +556,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
             : IM_COL32(130, 130, 145, 255);
         TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Human     "));
         SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);*/
+        TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);
 
         SetWindowFontScale(1.0f);
     }
@@ -455,28 +564,80 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
 
     PopStyleVar(3);
     PopStyleColor(2);
-}
+}*/
 
-// ── DrawDashedLine helper (taruh di atas) ──────────────────────────────
-void DrawDashedLine(ImDrawList* dl, const ImVec2& p1, const ImVec2& p2, ImU32 color, float thickness = 2.0f, float dashLen = 10.0f, float gapLen = 8.0f) {
-    ImVec2 delta = ImVec2(p2.x - p1.x, p2.y - p1.y);
-    float len = sqrt(delta.x * delta.x + delta.y * delta.y);
-    if (len < 1.0f) return;
+INLINE void DrawAutoQueue() {
+    if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
+        static std::chrono::steady_clock::time_point last_call_time;
+        static std::chrono::steady_clock::time_point countdown_start;
+        static bool counting = false;
 
-    ImVec2 dir = ImVec2(delta.x / len, delta.y / len);
-    float step = dashLen + gapLen;
-    float t = 0.0f;
+        auto now = std::chrono::steady_clock::now();
 
-    while (t < len) {
-        float startT = t;
-        float endT = t + dashLen;
-        if (endT > len) endT = len;
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_call_time).count() > 500) {
+            counting = false;
+        }
+        last_call_time = now;
 
-        ImVec2 startP = ImVec2(p1.x + dir.x * startT, p1.y + dir.y * startT);
-        ImVec2 endP   = ImVec2(p1.x + dir.x * endT,   p1.y + dir.y * endT);
+        if (!counting) {
+            counting = true;
+            countdown_start = now;
+        }
 
-        dl->AddLine(startP, endP, color, thickness);
-        t += step;
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - countdown_start).count();
+        int remaining_ms = 3000 - elapsed;
+
+        if (remaining_ms <= 0) {
+            if (sharedMenuManager.getMenuStateId() == 13) PopMenuState(13);
+            StartLastMatch();
+            counting = false;
+            return;
+        }
+
+        SetNextWindowPos(ImVec2(Width / 2.0f, Height / 2.0f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        SetNextWindowSize(ImVec2(360, 260), ImGuiCond_Always);
+        PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.12f, 0.98f));
+        PushStyleVar(ImGuiStyleVar_WindowRounding, 20.0f);
+
+        if (Begin(O("##AutoQueue"), nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
+            ImDrawList* dl = GetWindowDrawList();
+            ImVec2 winPos = GetWindowPos();
+            ImVec2 winSize = GetWindowSize();
+            
+            DrawGradientRect(dl, winPos, ImVec2(winPos.x + winSize.x, winPos.y + 70), IM_COL32(40, 100, 180, 255), IM_COL32(60, 140, 200, 255), true);
+            dl->AddRectFilled(winPos, ImVec2(winPos.x + winSize.x, winPos.y + 20), IM_COL32(40, 100, 180, 255), 20.0f, ImDrawFlags_RoundCornersTop);
+            
+            ImVec2 titleSize = CalcTextSize(O("Auto Queue"));
+            dl->AddText(ImVec2(winPos.x + (winSize.x - titleSize.x) * 0.5f, winPos.y + 22), IM_COL32(255, 255, 255, 255), O("Auto Queue"));
+
+            SetCursorPosY(90);
+            float font_scale = 3.5f;
+            SetWindowFontScale(font_scale);
+
+            std::string count_str = std::to_string((remaining_ms / 1000) + 1);
+            auto text_size = CalcTextSize(count_str.c_str());
+            SetCursorPosX((winSize.x - text_size.x) * 0.5f);
+            TextColored(ImVec4(0.35f, 0.7f, 1.0f, 1.0f), "%s", count_str.c_str());
+
+            SetWindowFontScale(1.0f);
+
+            SetCursorPosY(winSize.y - 75);
+            SetCursorPosX(25);
+            PushStyleColor(ImGuiCol_Button, ImVec4(0.75f, 0.25f, 0.25f, 1.0f));
+            PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.35f, 0.35f, 1.0f));
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+            
+            if (Button(O("Cancel"), ImVec2(winSize.x - 50, 50))) {
+                persistent_bool[O("bAutoQueue")] = false;
+                counting = false;
+            }
+            
+            PopStyleVar();
+            PopStyleColor(2);
+            End();
+        }
+        PopStyleVar();
+        PopStyleColor();
     }
 }
 
@@ -501,7 +662,11 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (!sharedMenuManager) return;
 
         MainStateManager mainStateManager = sharedMainManager.mStateManager;
-        if (!mainStateManager) return;
+        if (!mainStateManager.isInGame()) {
+        if (persistent_bool[O("bAutoQueue")]) {
+            if (!sharedMenuManager.isInQueue()) DrawAutoQueue();
+        } return;
+        }
         g_isInGame = mainStateManager.isInGame();
           if (!g_isInGame) return;
 
@@ -545,69 +710,33 @@ INLINE void DrawESP(ImDrawList* draw) {
         
         // ── BACA LINE STYLE ──
         
-        float lineThick = (float)persistent_int[O("iLineThickness")];
-        if (lineThick < 1.f) lineThick = 2.f;
-        
-        int lineStyle = persistent_int["iLineStyle"];
-        if (lineStyle < 0 || lineStyle > 1) lineStyle = 0; // 0 = Solid, 1 = Stripped
         
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
             for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-        
+
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
                     float lineThick = (float)persistent_int[O("iLineThickness")];
-                    if (lineThick < 1.f) lineThick = 1.f;
-        
-                    bool isStripe = (i >= 9 && i <= 15);
-                    ImU32 mainColor = colors[i];
-                    ImU32 whiteColor = IM_COL32(255, 255, 255, 220);
-        
+                    if (lineThick < 1.f) lineThick = 2++/////.f;
+                    for (int j = 1; j < ball.positions.size(); j++) {
+                        auto point = WorldToScreen(ball.positions[j]);
+                        if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
+                        lastPos = point;
+                    }
+                }
+            }
+        }
+
+        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
+            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+                auto& ball = gPrediction->guiData.balls[i];
+
+                if (ball.initialPosition != ball.predictedPosition) {
                     float circleR = (float)persistent_int[O("iLineThickness")] + 1.f;
                     if (circleR < 2.f) circleR = 2.f;
                     draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
-        
-                    // ── Garis prediksi ──
-                    for (int j = 1; j < ball.positions.size(); j++) {
-                        auto point = WorldToScreen(ball.positions[j]);
-                        if (lastPos.x || lastPos.y) {
-                            draw->AddLine(lastPos, point, mainColor, lineThick);
-                            if (isStripe) {
-                                DrawDashedLine(draw, lastPos, point, whiteColor, lineThick * 0.5f, 8.0f, 8.0f);
-                            }
-                        }
-                        lastPos = point;
-                    }
-        
-                    // ─── Circle kecil di posisi akhir bola ────────────────────────
-                    ImVec2 finalPos = WorldToScreen(ball.predictedPosition);
-                    draw->AddCircleFilled(finalPos, 6.0f, mainColor);
-        
-                    // ─── Outline + nomor di ujung garis (skip cue ball) ──────────
-                    if (i != 0) {
-                        ImVec2 endPos = WorldToScreen(ball.positions.back());
-        
-                        if (isStripe) {
-                            draw->AddCircle(endPos, 16.0f, mainColor, 0, 2.0f);
-                        }
-        
-                        char buf[4];
-                        snprintf(buf, sizeof(buf), "%d", i);
-        
-                        // 🔥 Hitung posisi teks SEBELUM draw
-                        ImVec2 textSize = ImGui::CalcTextSize(buf);
-                        ImVec2 textPos = ImVec2(endPos.x - textSize.x * 0.5f, endPos.y - textSize.y * 0.5f);
-        
-                        draw->AddCircleFilled(endPos, 10.0f, IM_COL32(255, 255, 255, 255));
-                        if (g_FontNomorBola) {
-                            ImGui::PushFont(g_FontNomorBola);
-                            draw->AddText(textPos, IM_COL32(0, 0, 0, 255), buf);
-                            ImGui::PopFont();
-                        } else {
-                            draw->AddText(textPos, IM_COL32(0, 0, 0, 255), buf);
-                        }
-                    }
+                    draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
                 }
             }
         }
@@ -817,7 +946,7 @@ static void DrawContentArea(float winW, float winH) {
             // ═══════════════════════════════════════════════════
             // SECTION: Draw  (paling atas)
             // ═══════════════════════════════════════════════════
-            SectionHeader("Draw");
+            SectionHeader("Draw Menu");
             need_save |= ToggleSwitch(O("Draw Lines"),       &persistent_bool[O("bESP_DrawPredictionLine")]);
             need_save |= ToggleSwitch(O("Draw Pockets"),     &persistent_bool[O("bESP_DrawPocketsShotState")]);
             need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
@@ -835,10 +964,109 @@ static void DrawContentArea(float winW, float winH) {
             // SECTION: Auto Play
             // ═══════════════════════════════════════════════════
             Dummy(ImVec2(0, 8));
-            SectionHeader("Auto Play");
-            need_save |= ToggleSwitch(O("Auto Play"), &persistent_bool[O("bAutoPlay")]);
+            SectionHeader("Auto Menu");
+            need_save |= ToggleSwitch(O("Enable Auto Play"), &persistent_bool[O("bAutoPlay")]);
+            need_save |= ToggleSwitch(O("Enable AutoQueue"), &persistent_bool[O("bAutoQueue")]);
+            Dummy(ImVec2(0, 20));
+            
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Mode"));
+            Dummy(ImVec2(0, 8));
+            PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+            PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(15, 12));
+            PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+            PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
+            SetNextItemWidth(GetContentRegionAvail().x);
+            need_save |= Combo("##mode", &persistent_int["iAutoQueue_Mode"], "Last Selected\0Smart\0Fix Table\0");
+            PopStyleColor(2);
+            PopStyleVar(2);
+            
+            if (persistent_int["iAutoQueue_Mode"] == 1) {
+                Dummy(ImVec2(0, 15));
+                TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Bet Percent"));
+                Dummy(ImVec2(0, 8));
+                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+                PushStyleVar(ImGuiStyleVar_GrabRounding, 10.0f);
+                PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+                PushStyleColor(ImGuiCol_SliderGrab, ImVec4(1.0f, 0, 0, 1.0f));
+                PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(1.0f, 0, 0, 1.0f));
+                SetNextItemWidth(GetContentRegionAvail().x);
+                need_save |= SliderInt("##betpercent", &persistent_int["iAutoQueue_BetPercent"], 1, 100, "%d%%");
+                PopStyleColor(3);
+                PopStyleVar(2);
+            }
 
-            Dummy(ImVec2(0, 4));
+            if (persistent_int["iAutoQueue_Mode"] == 2) {
+                Dummy(ImVec2(0, 15));
+                TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Select Table"));
+                Dummy(ImVec2(0, 8));
+
+                struct TableEntry { const char* label; ImU32 bg; ImU32 bgHov; };
+                static const TableEntry tables[17] = {
+                    { "100",   IM_COL32( 55,  90, 200, 255), IM_COL32( 75, 110, 220, 255) }, // M1  Blue
+                    { "200",   IM_COL32( 40, 150,  65, 255), IM_COL32( 55, 170,  80, 255) }, // M2  Green
+                    { "1k",    IM_COL32( 55,  90, 200, 255), IM_COL32( 75, 110, 220, 255) }, // M3  Blue
+                    { "2.5k",  IM_COL32(130,  25,  25, 255), IM_COL32(155,  40,  40, 255) }, // M4  Dark Red
+                    { "10k",   IM_COL32( 35,  35,  38, 255), IM_COL32( 55,  55,  60, 255) }, // M5  Black
+                    { "50k",   IM_COL32(110,   0,   0, 255), IM_COL32(135,  15,  15, 255) }, // M6  Maroon
+                    { "100k",  IM_COL32(140, 140, 145, 255), IM_COL32(160, 160, 165, 255) }, // M7  Light Grey
+                    { "500k",  IM_COL32(185, 160,   0, 255), IM_COL32(210, 185,  10, 255) }, // M8  Yellow
+                    { "1M",    IM_COL32( 20,  45, 130, 255), IM_COL32( 35,  60, 155, 255) }, // M9  Dark Blue
+                    { "2M",    IM_COL32(190,  90,  15, 255), IM_COL32(215, 110,  30, 255) }, // M10 Dark Orange
+                    { "5M",    IM_COL32(  0, 148, 110, 255), IM_COL32( 15, 170, 128, 255) }, // M11 Emerald
+                    { "8M",    IM_COL32(165,  65,  65, 255), IM_COL32(185,  85,  85, 255) }, // M12 Light Maroon
+                    { "10M",   IM_COL32( 18,  90,  35, 255), IM_COL32( 30, 112,  50, 255) }, // M13 Dark Green
+                    { "20M",   IM_COL32(100, 100, 110, 255), IM_COL32(120, 120, 130, 255) }, // M14 Grey
+                    { "30M",   IM_COL32(130,  15,  35, 255), IM_COL32(155,  30,  50, 255) }, // M15 Red Maroon
+                    { "50M",   IM_COL32(  0, 148, 110, 255), IM_COL32( 15, 170, 128, 255) }, // M16 Emerald
+                    { "200M",  IM_COL32( 20,  45, 130, 255), IM_COL32( 35,  60, 155, 255) }, // M17 Dark Blue
+                };
+
+                int& selected = persistent_int["iAutoQueue_FixTable"];
+                float avail   = GetContentRegionAvail().x;
+                int   cols    = 4;
+                float gap     = 8.0f;
+                float btnW    = (avail - gap * (cols - 1)) / cols;
+                float btnH    = 42.0f;
+
+                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+                PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4, 6));
+
+                for (int i = 0; i < 17; i++) {
+                    if (i % cols != 0) SameLine(0, gap);
+
+                    bool isSel = (selected == i);
+                    ImU32 bgCol = isSel ? tables[i].bgHov : tables[i].bg;
+
+                    PushStyleColor(ImGuiCol_Button,        (ImU32)bgCol);
+                    PushStyleColor(ImGuiCol_ButtonHovered, (ImU32)tables[i].bgHov);
+                    PushStyleColor(ImGuiCol_ButtonActive,  (ImU32)tables[i].bgHov);
+                    PushStyleColor(ImGuiCol_Text,          isSel ? IM_COL32(255,255,255,255) : IM_COL32(220,220,220,200));
+
+                    char btnId[32];
+                    snprintf(btnId, sizeof(btnId), "%s##ft%d", tables[i].label, i);
+                    if (Button(btnId, ImVec2(btnW, btnH))) {
+                        selected = i;
+                        need_save = true;
+                    }
+
+                    // Selected indicator: white outline
+                    if (isSel) {
+                        ImVec2 p = GetItemRectMin();
+                        ImVec2 q = GetItemRectMax();
+                        GetWindowDrawList()->AddRect(p, q, IM_COL32(255,255,255,200), 10.0f, 0, 2.0f);
+                    }
+
+                    PopStyleColor(4);
+                }
+
+                PopStyleVar(2);
+            }
+
+            if (persistent_int["iAutoQueue_Mode"] == 0) {
+                Dummy(ImVec2(0, 15));
+                TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("You will be auto queued to"));
+                TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("the last game mode you played"));
+            }
             break;
         }
 
@@ -1746,7 +1974,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
             ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
             ImGuiWindowFlags_NoInputs);
-      TextColored(ImColor(0, 255, 0, 255), O("Powered By @Cmengine"));
+      TextColored(ImColor(0, 255, 0, 255), O("@Cmengine"));
       End();
   }
 
