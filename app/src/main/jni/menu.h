@@ -339,7 +339,7 @@ INLINE void DrawExpired(ImGuiIO& io) {
 static void DrawToggleButton(); // forward declaration — defined after DrawFloatingButton
 
 static void DrawLiveStatusOverlay(ImGuiIO& io) {
-    if (!g_autoPlayEnabled) return;
+    if (!persistent_bool[O("bAutoPlay")]) return;
 
     // ================================================================
     // 1. STATE AUTOPLAY
@@ -587,12 +587,12 @@ INLINE void DrawAutoQueue() {
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - countdown_start).count();
         int remaining_ms = 3000 - elapsed;
 
-        if (remaining_ms <= 0) {
+      /*  if (remaining_ms <= 0) {
             if (sharedMenuManager.getMenuStateId() == 13) PopMenuState(13);
             StartLastMatch();
             counting = false;
             return;
-        }
+        }*/
 
         SetNextWindowPos(ImVec2(Width / 2.0f, Height / 2.0f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
         SetNextWindowSize(ImVec2(360, 260), ImGuiCond_Always);
