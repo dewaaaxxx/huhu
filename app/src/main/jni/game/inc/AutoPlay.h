@@ -58,8 +58,6 @@ Point2D lastSetCuePos = {-1000, -1000};
 
 namespace AutoPlay {
     bool bAutoPlaying = false;
-    // Mode: true = human mode (animasi aiming), false = fast mode (langsung tembak)
-    bool bHumanMode = true;
 
     // ── Live debug info (read by menu.h overlay) ──────
     struct ShotDebug {
@@ -143,20 +141,11 @@ namespace AutoPlay {
     // physics simulation takes time, the angle cannot be overridden between
     // setAimAngle and the actual fire command. spin=0 = straight physics.
     void takeShot(double angle, double power) {
-        if (bHumanMode) {
-            // Human mode: mulai state machine animasi
-            targetAngle = angle;
-            targetPower = power;
-            startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-            stateStartTime = nowSec();
-            humanState = HUM_THINKING;
-        } else {
-            // Fast mode: langsung tembak tanpa animasi
-            gPrediction->determineShotResult(false, angle, power, 0.0);
-            sharedGameManager.mVisualCue().mPower(ShotPowerToPower(power));
-            setAimAngle(angle);
-            M(void, libmain + 0x2dc0c58, void*)(F(void*, sharedGameManager + 0x3b0));
-        }
+        targetAngle = angle;
+        targetPower = power;
+        startAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+        stateStartTime = nowSec();
+        humanState = HUM_THINKING;
     }
     
     void triggerShot() {
@@ -174,7 +163,7 @@ namespace AutoPlay {
         g_CurrentCandidate.idx = -1;
         lastFailedCuePos = { -1000.0, -1000.0 };
         state = IDLE;
-        humanState = HUM_IDLE; // aman di kedua mode
+        humanState = HUM_IDLE;
     }
 
     // ── Scene Snapshot: capture ball positions once per turn, reuse for all
@@ -258,19 +247,8 @@ namespace AutoPlay {
             nominationFrameCounter = 0;
         } else {
             takeShot(angle, power);
-            if (bHumanMode) {
-                // Human mode: jangan ClearState/IDLE sekarang.
-                // State machine HUM_THINKING → ... → HUM_DELAY_BEFORE_SHOT yang akan
-                // fire dan panggil ClearState() sendiri setelah selesai.
-                // Set EXECUTING supaya isPlayerTurn check tidak mereset state.
-                g_CurrentCandidate.idx = g_CurrentCandidate.idx; // tetap valid
-                lastFailedCuePos = { -1000.0, -1000.0 };
-                state = EXECUTING;
-            } else {
-                // Fast mode: langsung clear karena shot sudah ditembak
-                ClearState();
-                state = IDLE;
-            }
+            ClearState();
+            state = IDLE;
         }
     }
 
@@ -587,7 +565,7 @@ namespace AutoPlay {
             if ((int)validShots.size() >= 5) break;
 
             // ── Angle refinement: coba beberapa offset kecil sekitar angle kandidat ──
-            constexpr double angleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
+            constexpr double angleOffsets[] = {0.0, -0.003, +0.003, -0.007, +0.007, -0.012, +0.012, -0.0175, +0.0175, -0.025, +0.025, -0.035, +0.035};
             double bestAngle = cand.angle;
             double bestPower = cand.power;
             bool   foundValid = false;
@@ -597,7 +575,7 @@ namespace AutoPlay {
                     normalizeAngle(cand.angle + dA));
 
                 // ── Power sweep: coba beberapa level power per angle ──────────────
-                constexpr double powerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.5, 0.65};
+                constexpr double powerFactors[] = {1.0, 1.05, 0.95, 1.12, 0.88, 1.2, 0.82, 1.35, 0.72, 1.5, 0.60, 1.7, 0.50, 2.0, 0.40};
                 for (double pf : powerFactors) {
                     double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
 
@@ -780,64 +758,24 @@ namespace AutoPlay {
 
     bool isAnimationActive() {
         auto visualCue = sharedGameManager.mVisualCue();
-        if (!visualCue) return false;
+        if (!visualCue) return true;
         auto _powerBarView = F(ptr, visualCue + 0x510);
-        if (!_powerBarView) return false;
+        if (!_powerBarView) return true;
         uintptr_t activeAction = M(uintptr_t, libmain + 0x2de6f30, ptr)(_powerBarView);
         return (activeAction != 0);
     }
 
-    // Gambar tombol mode di overlay — dipanggil dari Update() atau menu
-    void DrawModeButton() {
-        ImGuiIO& io = ImGui::GetIO();
-        float btnSize = 44.0f;
-        // Posisi di bawah tombol autoplay utama
-        ImVec2 pos = ImVec2(io.DisplaySize.x - btnSize - 10.0f, io.DisplaySize.y - btnSize * 2 - 20.0f);
-        ImGui::SetNextWindowPos(pos, ImGuiCond_Always);
-        ImGui::SetNextWindowSize(ImVec2(btnSize + 10.0f, btnSize + 10.0f), ImGuiCond_Always);
-        ImGui::SetNextWindowBgAlpha(0.0f);
-        ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs
-                               | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
-                               | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
-        // Buat interaktif
-        flags &= ~ImGuiWindowFlags_NoInputs;
-        if (ImGui::Begin("##modeBtn", nullptr, flags)) {
-            ImGui::PushStyleColor(ImGuiCol_Button,
-                bHumanMode ? IM_COL32(40, 120, 200, 220) : IM_COL32(200, 120, 40, 220));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                bHumanMode ? IM_COL32(60, 150, 230, 220) : IM_COL32(230, 150, 60, 220));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                bHumanMode ? IM_COL32(30, 90, 160, 220) : IM_COL32(160, 90, 30, 220));
-            // Label: "HUM" = human mode, "FST" = fast mode
-            if (ImGui::Button(bHumanMode ? "HUM" : "FST", ImVec2(btnSize, btnSize))) {
-                bHumanMode = !bHumanMode;
-                // Reset state saat ganti mode supaya tidak ada state machine yang menggantung
-                if (humanState != HUM_IDLE) {
-                    humanState = HUM_IDLE;
-                    humanShotLocked = false;
-                    NativeTouchesEnd(5, 0, 0);
-                }
-            }
-            ImGui::PopStyleColor(3);
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip(bHumanMode ? "Mode: Human (animasi)" : "Mode: Fast (langsung)");
-        }
-        ImGui::End();
-    }
-
     void Update() {
         buttonClicker.Update();
-        DrawModeButton(); // tampilkan tombol HUM/FST
         if (isAnimationActive()) return;
 
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            // Human mode sedang animasi — jangan interrupt
-            if (bHumanMode && humanState != HUM_IDLE) return;
-            // Sedang nominasi atau executing — jangan reset
-            if (state == EXECUTING || state == NOMINATING) return;
-            NativeTouchesEnd(5, 0, 0);
+            if (humanState != HUM_IDLE) return;
+            // Kalau sedang EXECUTING (nomination → shot), jangan reset
+            g_CurrentCandidate.idx = -1;
+            if (state == EXECUTING) return;
+            NativeTouchesEnd(5, 0, 0);   // Joystick
             if (state != IDLE) {
-                g_CurrentCandidate.idx = -1;
                 state = IDLE;
                 scan = FAST;
                 lastFailedCuePos = { -1000.0, -1000.0 };
@@ -920,8 +858,9 @@ namespace AutoPlay {
                 }
             }
         }
-            // ─── HUMAN STATE MACHINE (hanya di human mode) ──────────────────────
-        if (bHumanMode && humanState != HUM_IDLE) {
+            // ─── HUMAN STATE MACHINE ────────────────────────────────────────────
+        // ─── HIDE PREDICTION LINES DURING HUMAN STATE ──────────────────────────
+        if (humanState != HUM_IDLE) {
         double now = nowSec();
 
         auto UpdateJoystickVisuals = [&](double angle) {
@@ -1078,30 +1017,21 @@ namespace AutoPlay {
     }
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
 
-    // PREDICTION LINES:
-    // Di Prediction ini, lines digambar berdasarkan parameter `isAuto` di determineShotResult:
-    //   isAuto=false → fastCalc=false → positions di-track → lines TAMPIL
-    //   isAuto=true  → fastCalc=true  → positions tidak di-track → lines HILANG
-    //
-    // - Saat humanState aktif (lagi aiming/pulling): panggil isAuto=true → lines hilang
-    // - Saat humanState HUM_IDLE (setelah shot selesai): panggil isAuto=false → lines tampil
-    if (bHumanMode && humanState != HUM_IDLE) {
-        // Lines hilang selama human state machine jalan.
-        // Pakai 0.0 supaya simulasi konsisten dengan yang dipilih saat scan.
-        gPrediction->determineShotResult(true, targetAngle, targetPower, 0.0);
-    } else if (isPlayerTurn && g_CurrentCandidate.idx == -1) {
-        // Setelah shot selesai: unlock spin supaya scan berikutnya bisa lock fresh.
-        
-        // Lines tampil lagi, ikuti aim angle real-time.
-        if (gPrediction && sharedGameManager) {
-            double curAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-            // FIX POWER: mPower() return skala game (0.0–1.0), sedangkan
-            // determineShotResult expect skala simulasi (0–666 = langsung velocity).
-            // getShotPower() sudah return skala simulasi yang benar.
-            // mPower() mentah menyebabkan display lines pakai power jauh lebih kecil
-            // dari yang dipakai saat scan → trajectory berbeda → lines meleset.
-            double curPower = sharedGameManager.mVisualCue().getShotPower();
-            if (curPower < 10.0) curPower = 400.0; // fallback kalau belum ada power
+    // PREDICTION LINES — isAuto=false → lines tampil, isAuto=true → lines hilang
+    if (humanState != HUM_IDLE) {
+        // Selama human aiming: tampilkan lines di target angle biar keliatan mau nembak kemana
+        gPrediction->determineShotResult(false, targetAngle, targetPower, 0.0, g_CurrentCandidate);
+    } else if (isPlayerTurn) {
+        double curAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+        double curPower = sharedGameManager.mVisualCue().getShotPower();
+        if (curPower < 10.0) curPower = 400.0;
+        // Kalau ada kandidat terkunci, tampilkan simulasi kandidat yang sudah divalidasi
+        if (g_CurrentCandidate.idx != -1) {
+            gPrediction->determineShotResult(false, g_CurrentCandidate.angle,
+                                             g_CurrentCandidate.power, 0.0,
+                                             g_CurrentCandidate);
+        } else {
+            // Idle — ikuti aim angle real-time
             gPrediction->determineShotResult(false, curAngle, curPower, 0.0);
         }
     }
