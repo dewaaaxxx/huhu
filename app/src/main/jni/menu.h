@@ -654,7 +654,22 @@ INLINE void DrawESP(ImDrawList* draw) {
         sharedUserInfo = F(ptr, libmain + O(0x4e9feb8));
         if (!sharedUserInfo) return;
 
+        static bool firstTime = true;
+if (firstTime) {
+    LOGI("[USERINFO] INIT: libmain = %p", libmain);
+    LOGI("[USERINFO] INIT: sharedUserInfo = %p", sharedUserInfo.instance);
+    firstTime = false;
+}
+
+if (!sharedUserInfo) {
+    LOGI("[USERINFO] ❌ sharedUserInfo is NULL! Returning...");
+    return;
+}
+
+LOGI("[USERINFO] ✅ sharedUserInfo valid: %p", sharedUserInfo.instance);
+
         F(bool, sharedUserInfo + 0x340) = true;
+        LOGI("[USERINFO] Set bool at 0x340 = true");
 
         sharedMainManager = F(ptr, libmain + O(0x4dde3e0));
         if (!sharedMainManager) return;
@@ -776,9 +791,13 @@ static void DrawSidebar(float sidebarW, float winH, float topOffset) {
 
 // Reads an IL2CPP/Unity NSString (UTF-16 internal buffer at offset 0x14, length at 0x10)
 static std::string ReadNSString(ptr str) {
-    if (!str) return "null";
+    // ── SAFETY CHECK ──
+    if (!str) return "";
+    if ((uintptr_t)str < 0x1000) return ""; // Cegah pointer invalid
+    
     int32_t len = F(int32_t, str + 0x10);
-    if (len <= 0 || len > 512) return "?";
+    if (len <= 0 || len > 512) return "";
+    
     std::string result;
     result.reserve(len);
     for (int32_t i = 0; i < len; i++) {
@@ -1107,6 +1126,145 @@ static void DrawContentArea(float winW, float winH) {
             } else {
                 TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), O("UserInfo not available"));
             }
+
+            SectionHeader("User Game Info");
+
+    // ── LOG 1: CEK sharedUserInfo ──
+    LOGI("[USERINFO-TAB] Checking sharedUserInfo...");
+    
+    if (!sharedUserInfo) {
+        LOGI("[USERINFO-TAB] ❌ sharedUserInfo is NULL!");
+        TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), "UserInfo not available");
+        break;
+    }
+    
+    LOGI("[USERINFO-TAB] ✅ sharedUserInfo exists: %p", sharedUserInfo.instance);
+
+    // ── LOG 2: CEK INSTANCE ──
+    if (!sharedUserInfo.instance) {
+        LOGI("[USERINFO-TAB] ❌ sharedUserInfo.instance is NULL!");
+        TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), "UserInfo instance is null");
+        break;
+    }
+    
+    LOGI("[USERINFO-TAB] ✅ sharedUserInfo.instance: %p", sharedUserInfo.instance);
+
+    // ── LOG 3: CEK isInstanceOf ──
+    bool isInstance = sharedUserInfo.isInstanceOf("UserInfo");
+    LOGI("[USERINFO-TAB] isInstanceOf('UserInfo'): %s", isInstance ? "true" : "false");
+    
+    if (!isInstance) {
+        LOGI("[USERINFO-TAB] ❌ Not an instance of UserInfo!");
+        TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), "Not a valid UserInfo instance");
+        break;
+    }
+
+    // ── AMBIL POINTER ──
+    LOGI("[USERINFO-TAB] Reading pointers...");
+    
+    ptr namePtr = sharedUserInfo.DisplayName();
+    ptr countryPtr = sharedUserInfo.loginCountryCode();
+    ptr coinsPtr = sharedUserInfo.coins();
+    ptr cashPtr = sharedUserInfo.cash();
+    
+    LOGI("[USERINFO-TAB] namePtr: %p", namePtr);
+    LOGI("[USERINFO-TAB] countryPtr: %p", countryPtr);
+    LOGI("[USERINFO-TAB] coinsPtr: %p", coinsPtr);
+    LOGI("[USERINFO-TAB] cashPtr: %p", cashPtr);
+
+    // ── DISPLAY NAME ──
+    LOGI("[USERINFO-TAB] Reading DisplayName...");
+    if (namePtr) {
+        std::string name = ReadNSString(namePtr);
+        LOGI("[USERINFO-TAB] DisplayName raw: '%s'", name.c_str());
+        if (!name.empty()) {
+            SetWindowFontScale(1.2f);
+            TextColored(ImVec4(0.92f, 0.92f, 0.90f, 1.0f), "%s", name.c_str());
+            SetWindowFontScale(1.0f);
+            LOGI("[USERINFO-TAB] ✅ DisplayName: %s", name.c_str());
+        } else {
+            LOGI("[USERINFO-TAB] ⚠️ DisplayName is empty");
+            TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No Name");
+        }
+    } else {
+        LOGI("[USERINFO-TAB] ❌ namePtr is NULL!");
+        TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No Name");
+    }
+    
+    Dummy(ImVec2(0, 8));
+
+    // ── COUNTRY CODE ──
+    LOGI("[USERINFO-TAB] Reading Country Code...");
+    if (countryPtr) {
+        std::string country = ReadNSString(countryPtr);
+        LOGI("[USERINFO-TAB] Country raw: '%s'", country.c_str());
+        if (!country.empty()) {
+            TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "🌍 Country: %s", country.c_str());
+            LOGI("[USERINFO-TAB] ✅ Country: %s", country.c_str());
+        } else {
+            LOGI("[USERINFO-TAB] ⚠️ Country is empty");
+            TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "🌍 Country: N/A");
+        }
+    } else {
+        LOGI("[USERINFO-TAB] ❌ countryPtr is NULL!");
+        TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "🌍 Country: N/A");
+    }
+    
+    Dummy(ImVec2(0, 4));
+
+    // ── COINS ──
+    LOGI("[USERINFO-TAB] Reading Coins...");
+    if (coinsPtr) {
+        std::string coins = ReadNSString(coinsPtr);
+        LOGI("[USERINFO-TAB] Coins string raw: '%s'", coins.c_str());
+        if (!coins.empty()) {
+            TextColored(ImVec4(0.9f, 0.8f, 0.2f, 1.0f), "🪙 Coins: %s", coins.c_str());
+            LOGI("[USERINFO-TAB] ✅ Coins (string): %s", coins.c_str());
+        } else {
+            // Coba baca sebagai integer
+            int coinInt = F(int, coinsPtr);
+            LOGI("[USERINFO-TAB] Coins integer: %d", coinInt);
+            if (coinInt > 0) {
+                TextColored(ImVec4(0.9f, 0.8f, 0.2f, 1.0f), "🪙 Coins: %d", coinInt);
+                LOGI("[USERINFO-TAB] ✅ Coins (int): %d", coinInt);
+            } else {
+                LOGI("[USERINFO-TAB] ⚠️ Coins is 0 or invalid");
+                TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "🪙 Coins: N/A");
+            }
+        }
+    } else {
+        LOGI("[USERINFO-TAB] ❌ coinsPtr is NULL!");
+        TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "🪙 Coins: N/A");
+    }
+    
+    Dummy(ImVec2(0, 4));
+
+    // ── CASH ──
+    LOGI("[USERINFO-TAB] Reading Cash...");
+    if (cashPtr) {
+        std::string cash = ReadNSString(cashPtr);
+        LOGI("[USERINFO-TAB] Cash string raw: '%s'", cash.c_str());
+        if (!cash.empty()) {
+            TextColored(ImVec4(0.2f, 0.9f, 0.3f, 1.0f), "💰 Cash: %s", cash.c_str());
+            LOGI("[USERINFO-TAB] ✅ Cash (string): %s", cash.c_str());
+        } else {
+            int cashInt = F(int, cashPtr);
+            LOGI("[USERINFO-TAB] Cash integer: %d", cashInt);
+            if (cashInt > 0) {
+                TextColored(ImVec4(0.2f, 0.9f, 0.3f, 1.0f), "💰 Cash: %d", cashInt);
+                LOGI("[USERINFO-TAB] ✅ Cash (int): %d", cashInt);
+            } else {
+                LOGI("[USERINFO-TAB] ⚠️ Cash is 0 or invalid");
+                TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "💰 Cash: N/A");
+            }
+        }
+    } else {
+        LOGI("[USERINFO-TAB] ❌ cashPtr is NULL!");
+        TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "💰 Cash: N/A");
+    }
+    
+    LOGI("[USERINFO-TAB] === FINISHED ===");
+    Dummy(ImVec2(0, 8));
 
             // ── Device Info ───────────────────────────────────────────────────
             DrawSectionHeader(O("Device Info"));
