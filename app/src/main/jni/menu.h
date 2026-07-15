@@ -891,14 +891,14 @@ static void DrawContentArea(float winW, float winH) {
             // Info singkat mode yang dipilih
             Dummy(ImVec2(0, 6));
             if (persistent_int[O("iAutoPlayMode")] == 0) {
-                TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), ICON_FA_USER " Human Mode");
+                TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "[HUM] Human Mode");
                 PushTextWrapPos(GetContentRegionAvail().x);
                 TextColored(ImVec4(0.6f, 0.6f, 0.65f, 1.0f),
                     "AutoPlay will move the aiming like a natural human"
                     "Safe");
                 PopTextWrapPos();
             } else {
-                TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), ICON_FA_BOLT " Fast Mode");
+                TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "[FST] Fast Mode");
                 PushTextWrapPos(GetContentRegionAvail().x);
                 TextColored(ImVec4(0.6f, 0.6f, 0.65f, 1.0f),
                     "Direct shooting without drag aiming animation."
