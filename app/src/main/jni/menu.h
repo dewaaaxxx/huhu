@@ -697,13 +697,13 @@ static void svConfig_Save() {
     fprintf(f, O("iLineThickness=%d\n"),  persistent_int[O("iLineThickness")]);
       fprintf(f, O("iLineStyle=%d\n"),  persistent_int[O("iLineStyle")]);
       // Di bagian save:
-      fprintf(f, "iAutoPlayMode=%d\n", persistent_int[O("iAutoPlayMode")]);
       fprintf(f, O("iMenuSizeOffset=%d\n"), persistent_int[O("iMenuSizeOffset")]);
       fprintf(f, O("fAutoPlayPower=%.1f\n"),   persistent_float[O("fAutoPlayPower")]);
       fprintf(f, O("fAutoPlayDelay=%.2f\n"),   persistent_float[O("fAutoPlayShotDelayMax")]);
       fprintf(f, O("fFontScale=%.1f\n"),       persistent_float[O("fFontScale")]);
       fprintf(f, O("bManualPower=%d\n"),       (int)persistent_bool[O("bManualPower")]);
       fprintf(f, O("b9BallAimLock=%d\n"),      (int)persistent_bool[O("b9BallAimLock")]);
+      fprintf(f, "iAutoPlayMode=%d\n", persistent_int[O("iAutoPlayMode")]);
       fclose(f);
 }
 static void svConfig_Load() {
@@ -717,13 +717,13 @@ static void svConfig_Load() {
           if (sscanf(line, O("iMenuSizeOffset=%d"), &v) == 1) { persistent_int[O("iMenuSizeOffset")] = v; continue; }
           if (sscanf(line, O("iLineStyle=%d"),      &v) == 1) { persistent_int[O("iLineStyle")]      = v; continue; } // <-- TAMBAH INI
           // Di bagian load:
-          if (sscanf(line, "iAutoPlayMode=%d", &iv__) == 1) { persistent_int[O("iAutoPlayMode")] = iv__; continue; }
           float fv__; int bv__;
           if (sscanf(line, O("fAutoPlayPower=%f"),  &fv__) == 1) { persistent_float[O("fAutoPlayPower")]        = fv__; continue; }
           if (sscanf(line, O("fAutoPlayDelay=%f"),  &fv__) == 1) { persistent_float[O("fAutoPlayShotDelayMax")] = fv__; continue; }
           if (sscanf(line, O("fFontScale=%f"),      &fv__) == 1) { persistent_float[O("fFontScale")]            = fv__; continue; }
           if (sscanf(line, O("bManualPower=%d"),    &bv__) == 1) { persistent_bool[O("bManualPower")]           = (bool)bv__; continue; }
           if (sscanf(line, O("b9BallAimLock=%d"),   &bv__) == 1) { persistent_bool[O("b9BallAimLock")]          = (bool)bv__; }
+          if (sscanf(line, "iAutoPlayMode=%d", &iv__) == 1) { persistent_int[O("iAutoPlayMode")] = iv__; continue; }
     }
     fclose(f);
 }
