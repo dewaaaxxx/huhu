@@ -884,7 +884,7 @@ static void DrawContentArea(float winW, float winH) {
                 PopStyleColor(2);
                 PopStyleVar(2);
                 // Sync ke AutoPlay::bHumanMode setiap render
-                AutoPlay::bHumanMode = (persistent_int[O("iAutoPlayMode")] == 0);
+           //     AutoPlay::bHumanMode = (persistent_int[O("iAutoPlayMode")] == 0);
             }
 
             // Info singkat mode yang dipilih
