@@ -355,7 +355,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     // ================================================================
     // 2. HUMAN STATE
     // ================================================================
-    const char* humanStr = "Idle";
+ /*   const char* humanStr = "Idle";
     switch (AutoPlay::humanState) {
         case AutoPlay::HUM_IDLE:            humanStr = "Idle"; break;
         case AutoPlay::HUM_THINKING:        humanStr = "Thinking"; break;
@@ -366,7 +366,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         case AutoPlay::HUM_PULLING:         humanStr = "Pulling"; break;
         case AutoPlay::HUM_DELAY_BEFORE_SHOT: humanStr = "Delay"; break;
         default:                            humanStr = "Idle"; break;
-    }
+    }*/
 
     // ================================================================
     // 3. SHOT FOUND
@@ -442,12 +442,12 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         // ================================================================
         // BARIS 3: HUMAN STATE (SELALU TAMPIL)
         // ================================================================
-        ImU32 humanCol = (AutoPlay::humanState != AutoPlay::HUM_IDLE)
+      /*  ImU32 humanCol = (AutoPlay::humanState != AutoPlay::HUM_IDLE)
             ? IM_COL32(255, 200, 0, 255)
             : IM_COL32(130, 130, 145, 255);
         TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Human     "));
         SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);
+        TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);*/
 
         SetWindowFontScale(1.0f);
     }
@@ -536,7 +536,7 @@ INLINE void DrawESP(ImDrawList* draw) {
 
         if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
             for (int i = 0; i < 6; i++) {
-                if (Prediction::pocketStatus[i]) {
+                if (gPrediction->guiData.pocketStatus[i]) {
                     auto screenPos = WorldToScreen(pockets[i]);
                     draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 30, GREEN, 0, 5.f);
                 }
