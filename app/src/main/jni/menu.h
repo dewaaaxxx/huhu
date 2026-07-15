@@ -14,6 +14,7 @@
 #include <Vector/Vectors.h>
 #include <imgui/imgui.h>
 #include "icons/icons.h"
+#include "game/UserInfo.h"
 
 using namespace ImGui;
 using namespace std;
@@ -1096,7 +1097,19 @@ static void DrawContentArea(float winW, float winH) {
                 Dummy(ImVec2(0, 4));
             };
 
+            DrawSectionHeader(O("User Game Info"));
+
+            if (sharedUserInfo) {
+                DrawInfoRow(O("Coins:        "), ReadNSString(sharedUserInfo.coins()).c_str());
+                DrawInfoRow(O("Cash:         "), ReadNSString(sharedUserInfo.cash()).c_str());
+                DrawInfoRow(O("Display Name: "), ReadNSString(sharedUserInfo.DisplayName()).c_str());
+                DrawInfoRow(O("Country Code: "), ReadNSString(sharedUserInfo.loginCountryCode()).c_str());
+            } else {
+                TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), O("UserInfo not available"));
+            }
+
             // ── Device Info ───────────────────────────────────────────────────
+            DrawSectionHeader(O("Device Info"));
             {
                 static char s_manufacturer[PROP_VALUE_MAX] = {};
                 static char s_model[PROP_VALUE_MAX] = {};
