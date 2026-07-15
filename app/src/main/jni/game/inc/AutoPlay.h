@@ -218,8 +218,9 @@ namespace AutoPlay {
             currentScanAngle += angleStep;
             steps++;
 
-            // Power sweep lebih lengkap: cover semua range dari pelan sampai max
-            const double POWERS[] = { 150.0, 220.0, 300.0, 380.0, 460.0, 540.0, 620.0, 666.0 };
+            // Try 3 powers per angle: derived from shot distance where possible,
+            // otherwise use fixed medium values for safety.
+            const double POWERS[3] = { 200.0, 320.0, 420.0 };
 
             for (double power : POWERS) {
                 Candidate dummy = { -1 };
@@ -692,24 +693,6 @@ namespace AutoPlay {
     void Update() {
         buttonClicker.Update();
         if (isAnimationActive()) return;
-
-        // PREDICTION LINES — harus dipanggil tiap frame sebelum early return
-        // isAuto=false → positions di-track → lines tampil
-        if (sharedGameManager && gPrediction) {
-            double dispAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-            double dispPower = sharedGameManager.mVisualCue().getShotPower(false);
-            if (dispPower < 10.0) dispPower = 400.0;
-            // Kalau sudah ada kandidat, tampilkan simulasi kandidat biar lines akurat
-            if (g_CurrentCandidate.idx != -1) {
-                gPrediction->determineShotResult(false,
-                    g_CurrentCandidate.angle,
-                    g_CurrentCandidate.power,
-                    0.0,
-                    g_CurrentCandidate);
-            } else {
-                gPrediction->determineShotResult(false, dispAngle, dispPower, 0.0);
-            }
-        }
 
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
             if (state != IDLE) {
