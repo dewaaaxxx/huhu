@@ -14,7 +14,6 @@
 #include <Vector/Vectors.h>
 #include <imgui/imgui.h>
 #include "icons/icons.h"
-#include "game/UserInfo.h"
 
 using namespace ImGui;
 using namespace std;
@@ -354,118 +353,9 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     }
 
     // ================================================================
-    // 2. SHOT FOUND & POCKET
-    // ================================================================
-    bool hasCandidate = (g_CurrentCandidate.idx != -1);
-    bool isScanning = (AutoPlay::state == AutoPlay::SCANNING);
-    bool isExecuting = (AutoPlay::state == AutoPlay::EXECUTING);
-    
-    // Ambil pocket index
-    int pocketIdx = g_CurrentCandidate.pocketIndex;
-    const char* pocketName = "?";
-    if (pocketIdx >= 0 && pocketIdx < 6) {
-        const char* pocketNames[] = {"Top Left", "Top Right", "Middle Left", 
-                                     "Middle Right", "Bottom Left", "Bottom Right"};
-        pocketName = pocketNames[pocketIdx];
-    }
-
-    // ================================================================
-    // 3. WINDOW SETUP
-    // ================================================================
-    const float padH  = 24.0f;
-    const float padV  = 24.0f;
-
-    SetNextWindowPos(
-        ImVec2(padH, io.DisplaySize.y - padV),
-        ImGuiCond_Always,
-        ImVec2(0.0f, 1.0f)
-    );
-
-    PushStyleColor(ImGuiCol_WindowBg, IM_COL32(14, 14, 18, 185));
-    PushStyleColor(ImGuiCol_Border,   IM_COL32(60, 60, 80, 120));
-    PushStyleVar(ImGuiStyleVar_WindowRounding,  12.0f);
-    PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    PushStyleVar(ImGuiStyleVar_WindowPadding,   ImVec2(14.0f, 10.0f));
-
-    if (Begin(O("##LiveStatus"), nullptr,
-              ImGuiWindowFlags_NoTitleBar   | ImGuiWindowFlags_NoResize    |
-              ImGuiWindowFlags_NoMove       | ImGuiWindowFlags_NoScrollbar |
-              ImGuiWindowFlags_NoInputs     | ImGuiWindowFlags_NoSavedSettings |
-              ImGuiWindowFlags_AlwaysAutoResize)) {
-
-        ImDrawList* dl = GetWindowDrawList();
-        ImVec2 wp = GetWindowPos();
-        ImVec2 ws = GetWindowSize();
-
-        // ================================================================
-        // ACCENT BAR
-        // ================================================================
-        ImU32 accentCol;
-        if (hasCandidate) {
-            accentCol = IM_COL32(0, 255, 0, 255);      // Hijau = Shot Found
-        } else if (isScanning || isExecuting) {
-            accentCol = IM_COL32(0, 200, 255, 255);    // Biru = Scanning/Executing
-        } else {
-            accentCol = IM_COL32(100, 100, 100, 180);  // Abu = Idle
-        }
-        dl->AddRectFilled(wp, ImVec2(wp.x + 3.0f, wp.y + ws.y), accentCol, 12.0f, ImDrawFlags_RoundCornersLeft);
-
-        SetWindowFontScale(0.95f);
-
-        // ================================================================
-        // BARIS 1: STATUS UTAMA
-        // ================================================================
-        if (hasCandidate) {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), "Shot Found!");
-        } else {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 50, 50, 255)), "No Shot Found!"); // <-- MERAH
-        }
-
-        // ================================================================
-        // BARIS 2: STATE
-        // ================================================================
-        ImU32 stateCol = (AutoPlay::state != AutoPlay::IDLE)
-            ? IM_COL32(0, 200, 255, 255)
-            : IM_COL32(130, 130, 145, 255);
-        TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), "State : ");
-        SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(stateCol), stateStr);
-
-        // ================================================================
-        // BARIS 3: POCKET (HANYA JIKA SHOT FOUND)
-        // ================================================================
-        if (hasCandidate) {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), "Pocket : ");
-            SameLine(0, 0);
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 255, 255)), "%d", pocketIdx);
-        }
-        
-        SetWindowFontScale(1.0f);
-    }
-    End();
-
-    PopStyleVar(3);
-    PopStyleColor(2);
-}
-
-/*static void DrawLiveStatusOverlay(ImGuiIO& io) {
-    if (!persistent_bool[O("bAutoPlay")]) return;
-
-    // ================================================================
-    // 1. STATE AUTOPLAY
-    // ================================================================
-    const char* stateStr = "Idle";
-    switch (AutoPlay::state) {
-        case AutoPlay::SCANNING:   stateStr = "Scanning";   break;
-        case AutoPlay::NOMINATING: stateStr = "Nominating"; break;
-        case AutoPlay::EXECUTING:  stateStr = "Executing";  break;
-        default:                   stateStr = "Idle";       break;
-    }
-
-    // ================================================================
     // 2. HUMAN STATE
     // ================================================================
- /*   const char* humanStr = "Idle";
+    const char* humanStr = "Idle";
     switch (AutoPlay::humanState) {
         case AutoPlay::HUM_IDLE:            humanStr = "Idle"; break;
         case AutoPlay::HUM_THINKING:        humanStr = "Thinking"; break;
@@ -532,11 +422,9 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         // BARIS 1: STATUS UTAMA (Shot Found / Scanning / Aiming)
         // ================================================================
         if (hasCandidate) {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), O("Shot Found!"));
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), "Shot Found!");
         } else {
-            // ================================================================
-            // IDLE: GAK TULIS APA-APA (BIAR GAK DOBEL)
-            // ================================================================
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 50, 50, 255)), "No Shot Found!"); // <-- MERAH
         }
 
         // ================================================================
@@ -552,12 +440,18 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         // ================================================================
         // BARIS 3: HUMAN STATE (SELALU TAMPIL)
         // ================================================================
-      /*  ImU32 humanCol = (AutoPlay::humanState != AutoPlay::HUM_IDLE)
+        ImU32 humanCol = (AutoPlay::humanState != AutoPlay::HUM_IDLE)
             ? IM_COL32(255, 200, 0, 255)
             : IM_COL32(130, 130, 145, 255);
         TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Human     "));
         SameLine(0, 0);
         TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);
+        
+        if (hasCandidate) {
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), "Pocket : ");
+            SameLine(0, 0);
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 255, 255)), "%d", pocketIdx);
+        }
 
         SetWindowFontScale(1.0f);
     }
@@ -565,7 +459,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
 
     PopStyleVar(3);
     PopStyleColor(2);
-}*/
+}
 
 INLINE void DrawAutoQueue() {
     if (!g_Token.empty() && !g_Auth.empty() && g_Token == g_Auth) {
@@ -588,7 +482,7 @@ INLINE void DrawAutoQueue() {
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - countdown_start).count();
         int remaining_ms = 3000 - elapsed;
 
-      /*  if (remaining_ms <= 0) {
+   /*     if (remaining_ms <= 0) {
             if (sharedMenuManager.getMenuStateId() == 13) PopMenuState(13);
             StartLastMatch();
             counting = false;
@@ -654,22 +548,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         sharedUserInfo = F(ptr, libmain + O(0x4e9feb8));
         if (!sharedUserInfo) return;
 
-        static bool firstTime = true;
-if (firstTime) {
-    LOGI("[USERINFO] INIT: libmain = %p", libmain);
-    LOGI("[USERINFO] INIT: sharedUserInfo = %p", sharedUserInfo.instance);
-    firstTime = false;
-}
-
-if (!sharedUserInfo) {
-    LOGI("[USERINFO] ❌ sharedUserInfo is NULL! Returning...");
-    return;
-}
-
-LOGI("[USERINFO] ✅ sharedUserInfo valid: %p", sharedUserInfo.instance);
-
         F(bool, sharedUserInfo + 0x340) = true;
-        LOGI("[USERINFO] Set bool at 0x340 = true");
 
         sharedMainManager = F(ptr, libmain + O(0x4dde3e0));
         if (!sharedMainManager) return;
@@ -734,7 +613,7 @@ LOGI("[USERINFO] ✅ sharedUserInfo valid: %p", sharedUserInfo.instance);
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
                     float lineThick = (float)persistent_int[O("iLineThickness")];
-                    if (lineThick < 1.f) lineThick = 2.f;
+                    if (lineThick < 1.f) lineThick = 2++/////.f;
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
                         if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
@@ -791,13 +670,9 @@ static void DrawSidebar(float sidebarW, float winH, float topOffset) {
 
 // Reads an IL2CPP/Unity NSString (UTF-16 internal buffer at offset 0x14, length at 0x10)
 static std::string ReadNSString(ptr str) {
-    // ── SAFETY CHECK ──
-    if (!str) return "";
-    if ((uintptr_t)str < 0x1000) return ""; // Cegah pointer invalid
-    
+    if (!str) return "null";
     int32_t len = F(int32_t, str + 0x10);
-    if (len <= 0 || len > 512) return "";
-    
+    if (len <= 0 || len > 512) return "?";
     std::string result;
     result.reserve(len);
     for (int32_t i = 0; i < len; i++) {
@@ -1116,156 +991,7 @@ static void DrawContentArea(float winW, float winH) {
                 Dummy(ImVec2(0, 4));
             };
 
-            DrawSectionHeader(O("User Game Info"));
-
-            if (sharedUserInfo) {
-                DrawInfoRow(O("Coins:        "), ReadNSString(sharedUserInfo.coins()).c_str());
-                DrawInfoRow(O("Cash:         "), ReadNSString(sharedUserInfo.cash()).c_str());
-                DrawInfoRow(O("Display Name: "), ReadNSString(sharedUserInfo.DisplayName()).c_str());
-                DrawInfoRow(O("Country Code: "), ReadNSString(sharedUserInfo.loginCountryCode()).c_str());
-            } else {
-                TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), O("UserInfo not available"));
-            }
-
-    // ── LOG 1: CEK sharedUserInfo ──
-    LOGI("[USERINFO-TAB] Checking sharedUserInfo...");
-    
-    if (!sharedUserInfo) {
-        LOGI("[USERINFO-TAB] ❌ sharedUserInfo is NULL!");
-        TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), "UserInfo not available");
-        break;
-    }
-    
-    LOGI("[USERINFO-TAB] ✅ sharedUserInfo exists: %p", sharedUserInfo.instance);
-
-    // ── LOG 2: CEK INSTANCE ──
-    if (!sharedUserInfo.instance) {
-        LOGI("[USERINFO-TAB] ❌ sharedUserInfo.instance is NULL!");
-        TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), "UserInfo instance is null");
-        break;
-    }
-    
-    LOGI("[USERINFO-TAB] ✅ sharedUserInfo.instance: %p", sharedUserInfo.instance);
-
-    // ── LOG 3: CEK isInstanceOf ──
-    bool isInstance = sharedUserInfo.isInstanceOf("UserInfo");
-    LOGI("[USERINFO-TAB] isInstanceOf('UserInfo'): %s", isInstance ? "true" : "false");
-    
-    if (!isInstance) {
-        LOGI("[USERINFO-TAB] ❌ Not an instance of UserInfo!");
-        TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), "Not a valid UserInfo instance");
-        break;
-    }
-
-    // ── AMBIL POINTER ──
-    LOGI("[USERINFO-TAB] Reading pointers...");
-    
-    ptr namePtr = sharedUserInfo.DisplayName();
-    ptr countryPtr = sharedUserInfo.loginCountryCode();
-    ptr coinsPtr = sharedUserInfo.coins();
-    ptr cashPtr = sharedUserInfo.cash();
-    
-    LOGI("[USERINFO-TAB] namePtr: %p", namePtr);
-    LOGI("[USERINFO-TAB] countryPtr: %p", countryPtr);
-    LOGI("[USERINFO-TAB] coinsPtr: %p", coinsPtr);
-    LOGI("[USERINFO-TAB] cashPtr: %p", cashPtr);
-
-    // ── DISPLAY NAME ──
-    LOGI("[USERINFO-TAB] Reading DisplayName...");
-    if (namePtr) {
-        std::string name = ReadNSString(namePtr);
-        LOGI("[USERINFO-TAB] DisplayName raw: '%s'", name.c_str());
-        if (!name.empty()) {
-            SetWindowFontScale(1.2f);
-            TextColored(ImVec4(0.92f, 0.92f, 0.90f, 1.0f), "%s", name.c_str());
-            SetWindowFontScale(1.0f);
-            LOGI("[USERINFO-TAB] ✅ DisplayName: %s", name.c_str());
-        } else {
-            LOGI("[USERINFO-TAB] ⚠️ DisplayName is empty");
-            TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No Name");
-        }
-    } else {
-        LOGI("[USERINFO-TAB] ❌ namePtr is NULL!");
-        TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "No Name");
-    }
-    
-    Dummy(ImVec2(0, 8));
-
-    // ── COUNTRY CODE ──
-    LOGI("[USERINFO-TAB] Reading Country Code...");
-    if (countryPtr) {
-        std::string country = ReadNSString(countryPtr);
-        LOGI("[USERINFO-TAB] Country raw: '%s'", country.c_str());
-        if (!country.empty()) {
-            TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "🌍 Country: %s", country.c_str());
-            LOGI("[USERINFO-TAB] ✅ Country: %s", country.c_str());
-        } else {
-            LOGI("[USERINFO-TAB] ⚠️ Country is empty");
-            TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "🌍 Country: N/A");
-        }
-    } else {
-        LOGI("[USERINFO-TAB] ❌ countryPtr is NULL!");
-        TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "🌍 Country: N/A");
-    }
-    
-    Dummy(ImVec2(0, 4));
-
-    // ── COINS ──
-    LOGI("[USERINFO-TAB] Reading Coins...");
-    if (coinsPtr) {
-        std::string coins = ReadNSString(coinsPtr);
-        LOGI("[USERINFO-TAB] Coins string raw: '%s'", coins.c_str());
-        if (!coins.empty()) {
-            TextColored(ImVec4(0.9f, 0.8f, 0.2f, 1.0f), "🪙 Coins: %s", coins.c_str());
-            LOGI("[USERINFO-TAB] ✅ Coins (string): %s", coins.c_str());
-        } else {
-            // Coba baca sebagai integer
-            int coinInt = F(int, coinsPtr);
-            LOGI("[USERINFO-TAB] Coins integer: %d", coinInt);
-            if (coinInt > 0) {
-                TextColored(ImVec4(0.9f, 0.8f, 0.2f, 1.0f), "🪙 Coins: %d", coinInt);
-                LOGI("[USERINFO-TAB] ✅ Coins (int): %d", coinInt);
-            } else {
-                LOGI("[USERINFO-TAB] ⚠️ Coins is 0 or invalid");
-                TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "🪙 Coins: N/A");
-            }
-        }
-    } else {
-        LOGI("[USERINFO-TAB] ❌ coinsPtr is NULL!");
-        TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "🪙 Coins: N/A");
-    }
-    
-    Dummy(ImVec2(0, 4));
-
-    // ── CASH ──
-    LOGI("[USERINFO-TAB] Reading Cash...");
-    if (cashPtr) {
-        std::string cash = ReadNSString(cashPtr);
-        LOGI("[USERINFO-TAB] Cash string raw: '%s'", cash.c_str());
-        if (!cash.empty()) {
-            TextColored(ImVec4(0.2f, 0.9f, 0.3f, 1.0f), "💰 Cash: %s", cash.c_str());
-            LOGI("[USERINFO-TAB] ✅ Cash (string): %s", cash.c_str());
-        } else {
-            int cashInt = F(int, cashPtr);
-            LOGI("[USERINFO-TAB] Cash integer: %d", cashInt);
-            if (cashInt > 0) {
-                TextColored(ImVec4(0.2f, 0.9f, 0.3f, 1.0f), "💰 Cash: %d", cashInt);
-                LOGI("[USERINFO-TAB] ✅ Cash (int): %d", cashInt);
-            } else {
-                LOGI("[USERINFO-TAB] ⚠️ Cash is 0 or invalid");
-                TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "💰 Cash: N/A");
-            }
-        }
-    } else {
-        LOGI("[USERINFO-TAB] ❌ cashPtr is NULL!");
-        TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "💰 Cash: N/A");
-    }
-    
-    LOGI("[USERINFO-TAB] === FINISHED ===");
-    Dummy(ImVec2(0, 8));
-
             // ── Device Info ───────────────────────────────────────────────────
-            DrawSectionHeader(O("Device Info"));
             {
                 static char s_manufacturer[PROP_VALUE_MAX] = {};
                 static char s_model[PROP_VALUE_MAX] = {};
