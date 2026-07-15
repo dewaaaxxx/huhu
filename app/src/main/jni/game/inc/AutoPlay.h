@@ -565,7 +565,7 @@ namespace AutoPlay {
             if ((int)validShots.size() >= 5) break;
 
             // ── Angle refinement: coba beberapa offset kecil sekitar angle kandidat ──
-            constexpr double angleOffsets[] = {0.0, -0.003, +0.003, -0.007, +0.007, -0.012, +0.012, -0.0175, +0.0175, -0.025, +0.025, -0.035, +0.035};
+            constexpr double angleOffsets[] = {0.0, -0.003, +0.003, -0.0175, +0.0175, -0.035, +0.035};
             double bestAngle = cand.angle;
             double bestPower = cand.power;
             bool   foundValid = false;
@@ -575,7 +575,7 @@ namespace AutoPlay {
                     normalizeAngle(cand.angle + dA));
 
                 // ── Power sweep: coba beberapa level power per angle ──────────────
-                constexpr double powerFactors[] = {1.0, 1.05, 0.95, 1.12, 0.88, 1.2, 0.82, 1.35, 0.72, 1.5, 0.60, 1.7, 0.50, 2.0, 0.40};
+                constexpr double powerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.5, 0.65};
                 for (double pf : powerFactors) {
                     double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
 
@@ -1017,21 +1017,30 @@ namespace AutoPlay {
     }
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
 
-    // PREDICTION LINES — isAuto=false → lines tampil, isAuto=true → lines hilang
+    // PREDICTION LINES:
+    // Di Prediction ini, lines digambar berdasarkan parameter `isAuto` di determineShotResult:
+    //   isAuto=false → fastCalc=false → positions di-track → lines TAMPIL
+    //   isAuto=true  → fastCalc=true  → positions tidak di-track → lines HILANG
+    //
+    // - Saat humanState aktif (lagi aiming/pulling): panggil isAuto=true → lines hilang
+    // - Saat humanState HUM_IDLE (setelah shot selesai): panggil isAuto=false → lines tampil
     if (humanState != HUM_IDLE) {
-        // Selama human aiming: tampilkan lines di target angle biar keliatan mau nembak kemana
-        gPrediction->determineShotResult(false, targetAngle, targetPower, 0.0, g_CurrentCandidate);
-    } else if (isPlayerTurn) {
-        double curAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
-        double curPower = sharedGameManager.mVisualCue().getShotPower();
-        if (curPower < 10.0) curPower = 400.0;
-        // Kalau ada kandidat terkunci, tampilkan simulasi kandidat yang sudah divalidasi
-        if (g_CurrentCandidate.idx != -1) {
-            gPrediction->determineShotResult(false, g_CurrentCandidate.angle,
-                                             g_CurrentCandidate.power, 0.0,
-                                             g_CurrentCandidate);
-        } else {
-            // Idle — ikuti aim angle real-time
+        // Lines hilang selama human state machine jalan.
+        // Pakai 0.0 supaya simulasi konsisten dengan yang dipilih saat scan.
+        gPrediction->determineShotResult(true, targetAngle, targetPower, 0.0);
+    } else if (isPlayerTurn && g_CurrentCandidate.idx == -1) {
+        // Setelah shot selesai: unlock spin supaya scan berikutnya bisa lock fresh.
+        
+        // Lines tampil lagi, ikuti aim angle real-time.
+        if (gPrediction && sharedGameManager) {
+            double curAngle = sharedGameManager.mVisualCue().mVisualGuide().mAimAngle();
+            // FIX POWER: mPower() return skala game (0.0–1.0), sedangkan
+            // determineShotResult expect skala simulasi (0–666 = langsung velocity).
+            // getShotPower() sudah return skala simulasi yang benar.
+            // mPower() mentah menyebabkan display lines pakai power jauh lebih kecil
+            // dari yang dipakai saat scan → trajectory berbeda → lines meleset.
+            double curPower = sharedGameManager.mVisualCue().getShotPower();
+            if (curPower < 10.0) curPower = 400.0; // fallback kalau belum ada power
             gPrediction->determineShotResult(false, curAngle, curPower, 0.0);
         }
     }
