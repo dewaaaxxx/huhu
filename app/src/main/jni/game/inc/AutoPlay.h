@@ -258,8 +258,19 @@ namespace AutoPlay {
             nominationFrameCounter = 0;
         } else {
             takeShot(angle, power);
-            ClearState();
-            state = IDLE;
+            if (bHumanMode) {
+                // Human mode: jangan ClearState/IDLE sekarang.
+                // State machine HUM_THINKING → ... → HUM_DELAY_BEFORE_SHOT yang akan
+                // fire dan panggil ClearState() sendiri setelah selesai.
+                // Set EXECUTING supaya isPlayerTurn check tidak mereset state.
+                g_CurrentCandidate.idx = g_CurrentCandidate.idx; // tetap valid
+                lastFailedCuePos = { -1000.0, -1000.0 };
+                state = EXECUTING;
+            } else {
+                // Fast mode: langsung clear karena shot sudah ditembak
+                ClearState();
+                state = IDLE;
+            }
         }
     }
 
@@ -820,12 +831,13 @@ namespace AutoPlay {
         if (isAnimationActive()) return;
 
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
-            if (humanState != HUM_IDLE) return;
-            // Kalau sedang EXECUTING (nomination → shot), jangan reset
-            g_CurrentCandidate.idx = -1;
-            if (state == EXECUTING) return;
-            NativeTouchesEnd(5, 0, 0);   // Joystick
+            // Human mode sedang animasi — jangan interrupt
+            if (bHumanMode && humanState != HUM_IDLE) return;
+            // Sedang nominasi atau executing — jangan reset
+            if (state == EXECUTING || state == NOMINATING) return;
+            NativeTouchesEnd(5, 0, 0);
             if (state != IDLE) {
+                g_CurrentCandidate.idx = -1;
                 state = IDLE;
                 scan = FAST;
                 lastFailedCuePos = { -1000.0, -1000.0 };
