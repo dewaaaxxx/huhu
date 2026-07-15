@@ -1127,8 +1127,6 @@ static void DrawContentArea(float winW, float winH) {
                 TextColored(ImVec4(0.6f, 0.3f, 0.3f, 1.0f), O("UserInfo not available"));
             }
 
-            SectionHeader("User Game Info");
-
     // ── LOG 1: CEK sharedUserInfo ──
     LOGI("[USERINFO-TAB] Checking sharedUserInfo...");
     
