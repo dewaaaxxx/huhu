@@ -213,14 +213,14 @@ namespace AutoPlay {
         int  steps     = 0;
         int  collected = 0;
 
-        while (steps < 25 && currentScanAngle < maxAngle) {
+        while (steps < 16 && currentScanAngle < maxAngle) {
             double angle = currentScanAngle;
             currentScanAngle += angleStep;
             steps++;
 
             // Try 3 powers per angle: derived from shot distance where possible,
             // otherwise use fixed medium values for safety.
-            const double POWERS[3] = { 200.0, 320.0, 420.0 };
+            const double POWERS[] = { 150.0, 220.0, 300.0, 380.0, 460.0, 540.0, 620.0, 666.0 };
 
             for (double power : POWERS) {
                 Candidate dummy = { -1 };
@@ -490,7 +490,7 @@ namespace AutoPlay {
             if ((int)validShots.size() >= 5) break;
 
             // ── Angle refinement: coba beberapa offset kecil sekitar angle kandidat ──
-            constexpr double angleOffsets[] = {0.0, -0.003, +0.003, -0.007, +0.007, -0.012, +0.012, -0.018, +0.018};
+            constexpr double angleOffsets[] = {0.0, -0.0175, +0.0175, -0.035, +0.035};
             double bestAngle = cand.angle;
             double bestPower = cand.power;
             bool   foundValid = false;
@@ -500,7 +500,7 @@ namespace AutoPlay {
                     normalizeAngle(cand.angle + dA));
 
                 // ── Power sweep: coba beberapa level power per angle ──────────────
-                constexpr double powerFactors[] = {1.0, 1.05, 0.95, 1.12, 0.88, 1.2, 0.82, 1.35, 0.7, 1.5, 0.55};
+                constexpr double powerFactors[] = {1.0, 1.2, 0.85, 1.4, 0.7, 1.5, 0.65};
                 for (double pf : powerFactors) {
                     double tryPower = std::min(std::max(cand.power * pf, 80.0), 666.0);
 
