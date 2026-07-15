@@ -723,8 +723,7 @@ static void svConfig_Load() {
           if (sscanf(line, O("fFontScale=%f"),      &fv__) == 1) { persistent_float[O("fFontScale")]            = fv__; continue; }
           if (sscanf(line, O("bManualPower=%d"),    &bv__) == 1) { persistent_bool[O("bManualPower")]           = (bool)bv__; continue; }
           if (sscanf(line, O("b9BallAimLock=%d"),   &bv__) == 1) { persistent_bool[O("b9BallAimLock")]          = (bool)bv__; }
-          if (sscanf(line, "iAutoPlayMode=%d", &iv__) == 1) { persistent_int[O("iAutoPlayMode")] = iv__; continue; }
-    }
+          if (sscanf(line, O("iAutoPlayMode=%d"), &bv__) == 1) { persistent_int[O("iAutoPlayMode")] = bv__; continue; }    }
     fclose(f);
 }
 
