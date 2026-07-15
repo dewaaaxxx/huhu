@@ -696,6 +696,8 @@ static void svConfig_Save() {
     if (!f) return;
     fprintf(f, O("iLineThickness=%d\n"),  persistent_int[O("iLineThickness")]);
       fprintf(f, O("iLineStyle=%d\n"),  persistent_int[O("iLineStyle")]);
+      // Di bagian save:
+      fprintf(f, "iAutoPlayMode=%d\n", persistent_int[O("iAutoPlayMode")]);
       fprintf(f, O("iMenuSizeOffset=%d\n"), persistent_int[O("iMenuSizeOffset")]);
       fprintf(f, O("fAutoPlayPower=%.1f\n"),   persistent_float[O("fAutoPlayPower")]);
       fprintf(f, O("fAutoPlayDelay=%.2f\n"),   persistent_float[O("fAutoPlayShotDelayMax")]);
@@ -714,6 +716,8 @@ static void svConfig_Load() {
         if (sscanf(line, O("iLineThickness=%d"),  &v) == 1) { persistent_int[O("iLineThickness")]  = v; continue; }
           if (sscanf(line, O("iMenuSizeOffset=%d"), &v) == 1) { persistent_int[O("iMenuSizeOffset")] = v; continue; }
           if (sscanf(line, O("iLineStyle=%d"),      &v) == 1) { persistent_int[O("iLineStyle")]      = v; continue; } // <-- TAMBAH INI
+          // Di bagian load:
+          if (sscanf(line, "iAutoPlayMode=%d", &iv__) == 1) { persistent_int[O("iAutoPlayMode")] = iv__; continue; }
           float fv__; int bv__;
           if (sscanf(line, O("fAutoPlayPower=%f"),  &fv__) == 1) { persistent_float[O("fAutoPlayPower")]        = fv__; continue; }
           if (sscanf(line, O("fAutoPlayDelay=%f"),  &fv__) == 1) { persistent_float[O("fAutoPlayShotDelayMax")] = fv__; continue; }
@@ -862,6 +866,45 @@ static void DrawContentArea(float winW, float winH) {
             SectionHeader("Auto Menu");
             need_save |= ToggleSwitch(O("Enable Auto Play"), &persistent_bool[O("bAutoPlay")]);
             need_save |= ToggleSwitch(O("Enable AutoQueue"), &persistent_bool[O("bAutoQueue")]);
+
+            // AutoPlay Shooting Mode
+            Dummy(ImVec2(0, 12));
+            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("AutoPlay Mode"));
+            Dummy(ImVec2(0, 6));
+            {
+                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
+                PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(15, 12));
+                PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
+                PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
+                SetNextItemWidth(GetContentRegionAvail().x);
+                if (CmCombo("Mode", "",
+                            &persistent_int[O("iAutoPlayMode")],
+                            "Human Mode\0Fast Mode\0")) {
+                    need_save = true;
+                }
+                PopStyleColor(2);
+                PopStyleVar(2);
+                // Sync ke AutoPlay::bHumanMode setiap render
+                AutoPlay::bHumanMode = (persistent_int[O("iAutoPlayMode")] == 0);
+            }
+
+            // Info singkat mode yang dipilih
+            Dummy(ImVec2(0, 6));
+            if (persistent_int[O("iAutoPlayMode")] == 0) {
+                TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), ICON_FA_USER " Human Mode");
+                PushTextWrapPos(GetContentRegionAvail().x);
+                TextColored(ImVec4(0.6f, 0.6f, 0.65f, 1.0f),
+                    "AutoPlay will move the aiming like a natural human"
+                    "Safe");
+                PopTextWrapPos();
+            } else {
+                TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), ICON_FA_BOLT " Fast Mode");
+                PushTextWrapPos(GetContentRegionAvail().x);
+                TextColored(ImVec4(0.6f, 0.6f, 0.65f, 1.0f),
+                    "Direct shooting without drag aiming animation."
+                    "Risk");
+                PopTextWrapPos();
+            }
             Dummy(ImVec2(0, 20));
             
             TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Mode"));
