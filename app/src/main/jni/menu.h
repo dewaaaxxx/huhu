@@ -718,7 +718,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                 if (ball.initialPosition != ball.predictedPosition) {
                     ImVec2 lastPos{};
                     float lineThick = (float)persistent_int[O("iLineThickness")];
-                    if (lineThick < 1.f) lineThick = 2++/////.f;
+                    if (lineThick < 1.f) lineThick = 2.f;
                     for (int j = 1; j < ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
                         if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
