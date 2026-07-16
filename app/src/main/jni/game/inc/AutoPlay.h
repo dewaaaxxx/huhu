@@ -10,7 +10,7 @@
 #include "PhysicsModel.h"
 #include "GameSpeedControl.h"
 //#include "8bp/FrictionProperties.h"
-#include "ButtonClicker.h"
+#include "mod/ButtonClicker.h"
 
 using namespace ImGui;
 
@@ -767,7 +767,7 @@ namespace AutoPlay {
     // ========================================================================
     void Update() {
         buttonClicker.Update();
-        DrawToggleButton();
+        //DrawToggleButton();
 
         if (isAnimationActive()) return;
         if (!bAutoPlaying || !sharedGameManager.mStateManager().isPlayerTurn()) {
