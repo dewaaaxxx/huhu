@@ -1,15 +1,12 @@
 #pragma once
 
-#include "Prediction.fast.h"
-
 #include <cmath>
 #include <algorithm>
 
 // 🎱 Enhanced Physical Model for 8 Ball Pool
 namespace Physics {
     // Ball physics constants
-    // 🔥 Gunakan radius yang sama dengan game
-    constexpr double BALL_RADIUS = 3.800475; // 57.15mm dalam unit game
+    constexpr double BALL_RADIUS = 0.028575; // Standard 8-ball radius (57.15mm diameter)
     constexpr double TABLE_FRICTION = 0.1; // Sliding friction coefficient
     constexpr double ROLLING_FRICTION = 0.01; // Rolling friction
     constexpr double RESTITUTION = 0.95; // Coefficient of restitution (bounciness)
@@ -109,28 +106,9 @@ namespace Physics {
         return angle;
     }
     
-        // Validate shot based on physics
-    inline bool isValidShot(
-        const Point2D& cueBallPos,
-        const Point2D& targetBallPos,
-        const Point2D& pocketPos,
-        double power,
-        double maxPower = 666.0
-    ) {
+    // Validate shot based on physics
+    inline bool isValidShot(double power, double maxPower = 666.0) {
         if (power > maxPower) return false;
-        
-        double distanceToPocket = std::sqrt(
-            std::pow(pocketPos.x - targetBallPos.x, 2) +
-            std::pow(pocketPos.y - targetBallPos.y, 2)
-        );
-        
-        // Too close to pocket = risky, too far = impossible
-        if (distanceToPocket < BALL_RADIUS * 0.5) return false;
-        if (distanceToPocket > 10.0) return false; // Beyond table
-        
         return true;
     }
-
-    // الدالة الإضافية المكررة قمنا بدمجها بالمنطق أعلاه بشكل صحيح ونظيف
-
-} // هنا نقوم بإغلاق namespace Physics بشكل صحيح لمنع تداخل std::string
+}
