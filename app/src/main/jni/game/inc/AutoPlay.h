@@ -10,7 +10,7 @@
 #include "PhysicsModel.h"
 #include "GameSpeedControl.h"
 //#include "8bp/FrictionProperties.h"
-#include "mod/ButtonClicker.h"
+#include "ButtonClicker.h"
 
 using namespace ImGui;
 
@@ -450,8 +450,8 @@ namespace AutoPlay {
     // MAIN: Execute shot with nomination
     // ========================================================================
     void Shoot(double angle, double power = 0.f) {
-        setAimAngle(angle);
-        setShotPower(power);
+    //    setAimAngle(angle);
+  //      setShotPower(power);
         gPrediction->determineShotResult(false, angle, power);
 
         bool nominating = false;
@@ -471,9 +471,9 @@ namespace AutoPlay {
             state = NOMINATING;
             nominationFrameCounter = 0;
         } else {
+            pendingShotPower = power;
+            pendingShotAngle = angle;
             takeShot(angle, power);
-            ClearState();
-            state = IDLE;
         }
     }
     
@@ -640,7 +640,7 @@ namespace AutoPlay {
 
             // Strategic power levels for testing
            // std::vector<double> powers = {666.0, 500.0, 350.0, 200.0, 100.0};
-            std::vector<double> powers = {666.0, 566.0, 466.0, 366.0, 266.0, 166.0, 100.0, 80.0};
+            std::vector<double> powers = {666.0, 350.0};
             for (double power : powers) {
                 gPrediction->determineShotResult(true, angle, power, sharedGameManager.getShotSpin());
                 
