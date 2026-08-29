@@ -374,7 +374,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     // ================================================================
     // 2. HUMAN STATE
     // ================================================================
-    const char* humanStr = "Idle";
+   /* const char* humanStr = "Idle";
     switch (AutoPlay::humanState) {
         case AutoPlay::HUM_IDLE:            humanStr = "Idle"; break;
         case AutoPlay::HUM_THINKING:        humanStr = "Thinking"; break;
@@ -385,7 +385,7 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         case AutoPlay::HUM_PULLING:         humanStr = "Pulling"; break;
         case AutoPlay::HUM_DELAY_BEFORE_SHOT: humanStr = "Delay"; break;
         default:                            humanStr = "Idle"; break;
-    }
+    }*/
 
     // ================================================================
     // 3. SHOT FOUND
@@ -459,12 +459,12 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         // ================================================================
         // BARIS 3: HUMAN STATE (SELALU TAMPIL)
         // ================================================================
-        ImU32 humanCol = (AutoPlay::humanState != AutoPlay::HUM_IDLE)
+        /*ImU32 humanCol = (AutoPlay::humanState != AutoPlay::HUM_IDLE)
             ? IM_COL32(255, 200, 0, 255)
             : IM_COL32(130, 130, 145, 255);
         TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), O("Human     "));
         SameLine(0, 0);
-        TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);
+        TextColored(ImGui::ColorConvertU32ToFloat4(humanCol), humanStr);*/
         
         if (hasCandidate) {
             TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(140, 140, 155, 255)), "Pocket : ");
@@ -663,6 +663,19 @@ INLINE void DrawESP(ImDrawList* draw) {
                     draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
                 }
             }
+        }
+
+        if (persistent_bool[O("bESP_ShowBallNumbers")] && i > 0) {
+                        char number[8];
+                        snprintf(number, sizeof(number), "%d", i);
+                        const float innerRadius = 16 * 0.65f;
+                        draw->AddCircleFilled(ball.predictedPosition, innerRadius, IM_COL32(255, 255, 255, 255));
+                        ImFont* font = ImGui::GetFont();
+                        const float fontSize = ImGui::GetFontSize() * 0.75f;
+                        ImVec2 textSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, number);
+                        draw->AddText(font, fontSize,
+                                      ball.predictedPosition - (textSize * 0.4f),
+                                      IM_COL32(0, 0, 0, 255), number);
         }
     }
 }
@@ -877,15 +890,7 @@ static void DrawContentArea(float winW, float winH) {
             need_save |= ToggleSwitch(O("Draw Lines"),       &persistent_bool[O("bESP_DrawPredictionLine")]);
             need_save |= ToggleSwitch(O("Draw Pockets"),     &persistent_bool[O("bESP_DrawPocketsShotState")]);
             need_save |= ToggleSwitch(O("Show Enemy Lines"), &persistent_bool["bEnemyLine"]);
-            if (persistent_int["iLineStyle"] < 0 || persistent_int["iLineStyle"] > 1) {
-                persistent_int["iLineStyle"] = 0;
-            }
-            
-            const char* items = "SOLID\0DOTTED\0";
-            if (CmCombo("Line Style", "Choose prediction line style", &persistent_int["iLineStyle"], items)) {
-                need_save = true;
-            }
-
+            need_save |= ToggleSwitch(O("Show Ball Number"), &persistent_bool["bESP_ShowBallNumbers"]);
             // ═══════════════════════════════════════════════════
             // ═══════════════════════════════════════════════════
             // SECTION: Auto Play
@@ -894,7 +899,7 @@ static void DrawContentArea(float winW, float winH) {
             SectionHeader("Auto Menu");
             need_save |= ToggleSwitch(O("Auto Play"),       &persistent_bool[O("bButton")]);
 
-            need_save |= ToggleSwitch(O("Enable AutoQueue"), &persistent_bool[O("bAutoQueue")]);
+           /* need_save |= ToggleSwitch(O("Enable AutoQueue"), &persistent_bool[O("bAutoQueue")]);
             
             Dummy(ImVec2(0, 20));
             
@@ -995,7 +1000,7 @@ static void DrawContentArea(float winW, float winH) {
                 Dummy(ImVec2(0, 15));
                 TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("You will be auto queued to"));
                 TextColored(ImVec4(0.5f, 0.5f, 0.55f, 1.0f), O("the last game mode you played"));
-            }
+            }*/
             break;
         }
 
@@ -1063,7 +1068,7 @@ static void DrawContentArea(float winW, float winH) {
                 DrawInfoRow(O("Model: "), s_model);
                 DrawInfoRow(O("Abi: "), s_abi);
                 DrawInfoRow(O("Android: "), s_android);
-                DrawInfoRow(O("Key: "), persistent_string["key"].c_str());
+              //  DrawInfoRow(O("Key: "), persistent_string["key"].c_str());
                 {
                       TextColored(ImVec4(0.55f,0.55f,0.65f,1.0f), "%s", O("Expire: "));
                       SameLine();
@@ -1092,7 +1097,7 @@ static void DrawContentArea(float winW, float winH) {
                 }
 
                 // ── Change Key ──────────────────────────────────────────
-                DrawSectionHeader(O("Update Key"));
+                /*DrawSectionHeader(O("Update Key"));
                 {
                     static char  s_newKey[128]  = {};
                     static bool  s_keyApplying  = false;
@@ -1143,7 +1148,7 @@ static void DrawContentArea(float winW, float winH) {
                         TextColored(ok2 ? ImVec4(0.35f,0.9f,0.5f,1.0f) : ImVec4(1.0f,0.35f,0.35f,1.0f),
                                     "%s", s_keyMsg.c_str());
                     }
-                }
+                }*/
                 Dummy(ImVec2(0, 8));
 
             break;
@@ -1902,7 +1907,7 @@ DEFINES(EGLBoolean, Draw, EGLDisplay dpy, EGLSurface surface) {
             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
             ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
             ImGuiWindowFlags_NoInputs);
-      TextColored(ImColor(0, 255, 0, 255), O("@Cmengine"));
+      TextColored(ImColor(0, 255, 0, 255), O(""));
       End();
   }
 
