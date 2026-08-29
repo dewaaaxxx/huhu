@@ -371,10 +371,10 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
     // ================================================================
     // 3. SHOT FOUND
     // ================================================================
-    bool hasCandidate = (g_CurrentCandidate.idx != -1);
+    bool hasCandidate = (AutoPlay::g_CurrentCandidate.idx != -1);
     bool isScanning = (AutoPlay::state == AutoPlay::SCANNING);
     bool isExecuting = (AutoPlay::state == AutoPlay::EXECUTING);
-    int pocketIdx = g_CurrentCandidate.pocketIndex;
+    int pocketIdx = AutoPlay::g_CurrentCandidate.pocketIndex;
     // ================================================================
     // 4. WINDOW SETUP
     // ================================================================
