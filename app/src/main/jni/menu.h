@@ -18,6 +18,8 @@
 using namespace ImGui;
 using namespace std;
 
+#define NEON_CYAN      IM_COL32(0, 255, 255, 255)
+
 ImFont* g_FontNomorBola = nullptr;
 
 struct MenuState {
@@ -1311,9 +1313,9 @@ INLINE void DrawMenu(ImGuiIO& io) {
                     ImVec2(wp0.x + winW, wp0.y + headerH), T.separator, 1.0f);
 
                 // ── LYN4XP logo top-LEFT ──────────────────────────────────
-              /*  ImVec2 logoMin = ImVec2(wp0.x + logoPad, wp0.y + logoPad);
+                ImVec2 logoMin = ImVec2(wp0.x + logoPad, wp0.y + logoPad);
                 ImVec2 logoMax = ImVec2(logoMin.x + logoSz, logoMin.y + logoSz);
-                if (lyn4xp_menu_tex)
+              /*  if (lyn4xp_menu_tex)
                     bg->AddImageRounded((void*)(intptr_t)lyn4xp_menu_tex, logoMin, logoMax,
                         ImVec2(0,0), ImVec2(1,1), IM_COL32(255,255,255,240), logoSz * 0.25f);*/
 
@@ -1324,7 +1326,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
                     snprintf(s_fps, sizeof(s_fps), "%.0f", io.Framerate);
 
                     ImVec2 prefixSz = CalcTextSize(s_prefix);
-                    float  infoX    = logoMax.x + 10.0f * sizeScale;
+                    float  infoX    = wp0.x + 16.0f * sizeScale;   // <-- kiri header
                     float  infoY    = wp0.y + (headerH - prefixSz.y) * 0.5f;
                     float  xBtnLeft = wp0.x + winW - 50.0f * sizeScale;
 
