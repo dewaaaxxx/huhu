@@ -602,7 +602,7 @@ INLINE void DrawESP(ImDrawList* draw) {
         if (!gameStateManager) return;
 
         if (persistent_bool[O("bButton")]) {
-            DrawToggleButton()
+            DrawToggleButton();
         }
 
         if (persistent_bool[O("bAutoPlay")]) {
