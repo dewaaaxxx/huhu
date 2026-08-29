@@ -81,31 +81,6 @@ static inline const MenuTheme& GetTheme() {
     return THEMES[idx];
 }
 
-static bool DrawModeButton(const char* label) {
-    const MenuTheme& T = GetTheme();
-    ImVec4 accent = ImGui::ColorConvertU32ToFloat4(T.accent);
-    ImVec4 accentHov = ImGui::ColorConvertU32ToFloat4(T.accentHov);
-    ImVec4 textCol = ImGui::ColorConvertU32ToFloat4(T.textPrimary);
-
-    bool active = persistent_bool[O("bAutoPlay")]; // ambil status aktif dari sini
-
-    PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
-    PushStyleColor(ImGuiCol_Button, active ? accent : ImVec4(0.08f, 0.18f, 0.28f, 1.0f));
-    PushStyleColor(ImGuiCol_ButtonHovered, active ? accentHov : ImVec4(0.12f, 0.35f, 0.48f, 1.0f));
-    PushStyleColor(ImGuiCol_ButtonActive, active ? accentHov : accent);
-    PushStyleColor(ImGuiCol_Text, active ? ImVec4(1.0f, 1.0f, 1.0f, 1.0f) : textCol);
-    bool pressed = Button(label, ImVec2(GetContentRegionAvail().x, 58.0f));
-    PopStyleColor(4);
-    PopStyleVar();
-
-    if (pressed) {
-        // toggle status
-        SetAutoPlayEnabled(!active);
-        save_persistence();
-    }
-
-    return pressed;
-}
 // g_ExpiryTimestamp (from keylogin.h) replaces hardcoded EXPIRY_TS
 
 static bool DEBUG_BYPASS_LOGIN = true;
