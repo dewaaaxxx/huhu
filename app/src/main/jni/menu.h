@@ -441,9 +441,9 @@ static void DrawLiveStatusOverlay(ImGuiIO& io) {
         // BARIS 1: STATUS UTAMA (Shot Found / Scanning / Aiming)
         // ================================================================
         if (hasCandidate) {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), "Shot Found!");
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(0, 255, 0, 255)), "Shoot Found!");
         } else {
-            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 50, 50, 255)), "No Shot Found!"); // <-- MERAH
+            TextColored(ImGui::ColorConvertU32ToFloat4(IM_COL32(255, 50, 50, 255)), "Waiting Shoot"); // <-- MERAH
         }
 
         // ================================================================
@@ -623,12 +623,11 @@ INLINE void DrawESP(ImDrawList* draw) {
             gPrediction->determineShotResult(false);
         }
 
-        if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
+        if (persistent_bool[O("bESP_DrawPockets")]) {
             for (int i = 0; i < 6; i++) {
-                if (Prediction::pocketStatus[i]) {
-                    auto screenPos = WorldToScreen(pockets[i]);
-                    draw->AddCircle(ImVec2(screenPos.x, screenPos.y), 30, GREEN, 0, 5.f);
-                }
+                auto sp = WorldToScreen(pockets[i]);
+                draw->AddCircle(ImVec2(sp.x, sp.y), 40, NEON_CYAN, 0, 3.f);
+                draw->AddCircle(ImVec2(sp.x, sp.y), 50, IM_COL32(0, 200, 255, 60), 0, 1.5f);
             }
         }
         
@@ -662,9 +661,9 @@ INLINE void DrawESP(ImDrawList* draw) {
                         const float innerRadius = 16 * 0.65f;
                         draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), innerRadius, IM_COL32(255, 255, 255, 255));
                         ImFont* font = ImGui::GetFont();
-                        const float fontSize = ImGui::GetFontSize() * 0.75f;
+                        const float fontSize = ImGui::GetFontSize() * 0.70f;
                         ImVec2 textSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, number);
-                        ImVec2 pos = WorldToScreen(ball.predictedPosition) - (textSize * 0.4f);
+                        ImVec2 pos = WorldToScreen(ball.predictedPosition) - (textSize * 0.5f);
                         draw->AddText(font, fontSize, pos, IM_COL32(0, 0, 0, 255), number);
                     }
                 }
@@ -1061,7 +1060,7 @@ static void DrawContentArea(float winW, float winH) {
                 DrawInfoRow(O("Model: "), s_model);
                 DrawInfoRow(O("Abi: "), s_abi);
                 DrawInfoRow(O("Android: "), s_android);
-              //  DrawInfoRow(O("Key: "), persistent_string["key"].c_str());
+                DrawInfoRow("Telegram: ", "@xabi666");
                 {
                       TextColored(ImVec4(0.55f,0.55f,0.65f,1.0f), "%s", O("Expire: "));
                       SameLine();
@@ -1295,7 +1294,7 @@ INLINE void DrawMenu(ImGuiIO& io) {
                                         ImGuiWindowFlags_NoResize;
 
             if (Begin(O("##MainMenu"), &g_menu.isOpen, winFlags)) {
-                static GLuint lyn4xp_menu_tex = LoadTextureFromMemory(lyn4xp_logo_png, lyn4xp_logo_png_len);
+           //     static GLuint lyn4xp_menu_tex = LoadTextureFromMemory(lyn4xp_logo_png, lyn4xp_logo_png_len);
 
                 ImDrawList* bg = GetWindowDrawList();
                 ImVec2 wp0 = GetWindowPos();
@@ -1312,15 +1311,15 @@ INLINE void DrawMenu(ImGuiIO& io) {
                     ImVec2(wp0.x + winW, wp0.y + headerH), T.separator, 1.0f);
 
                 // ── LYN4XP logo top-LEFT ──────────────────────────────────
-                ImVec2 logoMin = ImVec2(wp0.x + logoPad, wp0.y + logoPad);
+              /*  ImVec2 logoMin = ImVec2(wp0.x + logoPad, wp0.y + logoPad);
                 ImVec2 logoMax = ImVec2(logoMin.x + logoSz, logoMin.y + logoSz);
                 if (lyn4xp_menu_tex)
                     bg->AddImageRounded((void*)(intptr_t)lyn4xp_menu_tex, logoMin, logoMax,
-                        ImVec2(0,0), ImVec2(1,1), IM_COL32(255,255,255,240), logoSz * 0.25f);
+                        ImVec2(0,0), ImVec2(1,1), IM_COL32(255,255,255,240), logoSz * 0.25f);*/
 
                 // ── Header info text (kanan logo) ─────────────────────────
                 {
-                    static const char* s_prefix = "CM | 8BP 56.26 V : 1.0 | x64 | FPS ";
+                    static const char* s_prefix = "XABI | 8BP 56.26 V : 1.0 | x64 | FPS ";
                     static char s_fps[16];
                     snprintf(s_fps, sizeof(s_fps), "%.0f", io.Framerate);
 
@@ -1549,7 +1548,7 @@ static void DrawFloatingButton(ImGuiIO& io) {
         dl->AddCircle(center, btnR, IM_COL32(200, 30, 30, hov ? 255 : 180), 0, 2.5f);
 
         // Simple "8BP" label inside
-        const char* lbl = "8BP";
+        const char* lbl = "X";
         ImVec2 tSz = CalcTextSize(lbl);
         SetWindowFontScale(1.0f);
         dl->AddText(ImVec2(center.x - tSz.x * 0.5f, center.y - tSz.y * 0.5f),
