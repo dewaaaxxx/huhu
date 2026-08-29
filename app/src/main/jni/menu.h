@@ -591,6 +591,8 @@ INLINE void DrawESP(ImDrawList* draw) {
         Table table = sharedGameManager.mTable;
         if (!table) return;
 
+        AutoPlay::Update();
+
         auto tableProperties = table.mTableProperties();
         if (!tableProperties) return;
 
@@ -599,9 +601,17 @@ INLINE void DrawESP(ImDrawList* draw) {
         GameStateManager gameStateManager = sharedGameManager.mStateManager;
         if (!gameStateManager) return;
 
+        if (persistent_bool[O("bButton")]) {
+            DrawToggleButton()
+        }
+
         if (persistent_bool[O("bAutoPlay")]) {
-            DrawToggleButton();
-            AutoPlay::Update();
+            AutoPlay::currentMode = AutoPlay::MODE_AUTO_PLAY;
+            AutoPlay::playStyle = AutoPlay::STYLE_WILD;
+            AutoPlay::bAutoPlaying = persistent_bool[O("bAutoPlay")];
+        } else {
+            AutoPlay::currentMode = AutoPlay::MODE_OFF;
+            AutoPlay::bAutoPlaying = false;
         }
 
 
@@ -882,21 +892,7 @@ static void DrawContentArea(float winW, float winH) {
             // ═══════════════════════════════════════════════════
             Dummy(ImVec2(0, 8));
             SectionHeader("Auto Menu");
-            if (ToggleSwitch("Auto Play", &persistent_bool[O("bAutoPlay")])) {
-                bool newState = persistent_bool[O("bAutoPlay")];
-                if (newState) {
-                    AutoPlay::bAutoPlaying = true;
-                    AutoPlay::currentMode = AutoPlay::MODE_AUTO_PLAY;
-                    AutoPlay::playStyle = AutoPlay::STYLE_WILD;
-                    AutoPlay::ClearState();
-                } else {
-                    AutoPlay::bAutoPlaying = false;
-                    AutoPlay::currentMode = AutoPlay::MODE_OFF;
-                    AutoPlay::ClearState();
-                }
-                save_persistence();
-                need_save = true;
-            }
+            need_save |= ToggleSwitch(O("Auto Play"),       &persistent_bool[O("bButton")]);
 
             need_save |= ToggleSwitch(O("Enable AutoQueue"), &persistent_bool[O("bAutoQueue")]);
             
@@ -1444,8 +1440,7 @@ static void DrawToggleButton() {
         ImVec2 center(pos.x + size.x * 0.5f, pos.y + size.y * 0.5f);
 
         if (InvisibleButton(O("##TglBtnHit"), size)) {
-            AutoPlay::bAutoPlaying = !AutoPlay::bAutoPlaying;
-            if (AutoPlay::bAutoPlaying) AutoPlay::ClearState();
+            SetAutoPlayEnabled(!persistent_bool[O("bAutoPlay")]);
         }
         bool hov = IsItemHovered();
 
