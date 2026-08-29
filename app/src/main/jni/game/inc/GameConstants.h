@@ -4,7 +4,7 @@
 
 inline constexpr int MAX_BALLS_COUNT = 16;
 inline constexpr double BALL_RADIUS = 3.800475;
-inline constexpr double BALL_RADIUS_SQUARE = BALL_RADIUS * BALL_RADIUS; // otomatis berubah
+inline constexpr double BALL_RADIUS_SQUARE = BALL_RADIUS * BALL_RADIUS;
 
 
 
@@ -30,6 +30,11 @@ inline constexpr int TABLE_SHAPE_SIZE = 46;
 
 inline constexpr double POCKET_RADIUS = 8.0;
 inline constexpr double POCKET_RADIUS_SQUARE = POCKET_RADIUS * POCKET_RADIUS;
+// The game can drop a ball before its center reaches the exact ball-radius
+// circle around the pocket center. Keep this separate from the outer jaw
+// attraction radius so pocket entry can be calibrated independently.
+inline constexpr double POCKET_DROP_RADIUS = 7.0;
+inline constexpr double POCKET_DROP_RADIUS_SQUARE = POCKET_DROP_RADIUS * POCKET_DROP_RADIUS;
 
 inline constexpr int MAX_SHOT_RESULT_SIZE = 50000;
 
@@ -55,8 +60,19 @@ struct Candidate {
     int idx;
     double angle;
     double score;
-    int pocketIndex;
+    int pocketIndex;      // >= 0: this shot aims at THAT pocket and the sim must
+                          // confirm it. -1: no pocket was aimed at (blind sweep /
+                          // break probe) - any legal pocket counts.
     double power;
+    double dist; // Added for distance-based scoring
+    // Spin the scan proved this shot with. The scan used to write spin straight
+    // into the live game mid-scan and then let applyAutoSpin() overwrite it at
+    // fire time, so the shot was simulated with one spin and fired with another.
+    // Carrying it on the candidate keeps selection, validation and execution on
+    // one number - the same fix already applied to power (QuantizeShotPower).
+    double spinX = 0.0;
+    double spinY = 0.0;
+    bool   useSpin = false;
     bool operator<(const Candidate& other) const {
         return score < other.score;
     }

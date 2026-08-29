@@ -5,6 +5,14 @@
 
 #define NAN std::isnan
 
+// Set while calcVelocity* temporarily writes the sim state into live Ball memory
+// (and calls real engine funcs on it). The live-physics logger (mod/live_log.h)
+// skips any event while this is set, so it only records real-world collisions.
+// `inline` (not `extern`) so this header can be included from more than one
+// translation unit without a "multiple definition" link error, while still
+// giving every TU the same single instance (C++17 inline variable).
+inline volatile bool g_livePhysInSim = false;
+
 void FUN_02b1b2d0(double *smallestTime, const Vector2D *ball1_position, const Vector2D *ball1_velocity, const Vector2D *ball2_position, const Vector2D *ball2_velocity, double *combinedBallRadiusSquared, double *param_7) {
     Vector2D relativePosition;
     double dVar2;
@@ -44,11 +52,58 @@ bool Prediction::Ball::isBallBallCollision(double *smallestTime, Prediction::Bal
     double balls_radius = BALL_RADIUS + BALL_RADIUS;
     double combinedBallRadiusSquared = balls_radius * balls_radius;
 
-    double tempTime = *smallestTime;
-    
+    double bound = *smallestTime;
+    double tempTime = bound;
+
     FUN_02b1b2d0(&tempTime, &ball1.predictedPosition, &ball1.velocity, &ball2.predictedPosition, &ball2.velocity, &combinedBallRadiusSquared, &tempTime);
-    
-    if (tempTime != DAT_04c8b9c0) {
+
+    // OVERLAP RECOVERY. FUN_02b1b2d0 solves for the moment the gap closes to
+    // exactly 2R. If the pair is ALREADY closer than 2R, the quadratic's early
+    // root is negative and the `0.0 <= dVar1` gate at line 32 rejects it, so the
+    // contact is silently dropped; once the pair drifts apart again the approach
+    // gate (line 26) fails too, and the two balls ghost straight through each
+    // other for the rest of the simulation. A cliff, not a drift - which is why
+    // it shows up as "the ball did not go where the line said" rather than as a
+    // small error everywhere.
+    //
+    // Overlap is reachable whenever a sub-step advances a pair slightly past
+    // true contact: simultaneous collisions (only ONE collision record exists
+    // per sub-step, so the other pair of a genuine tie is left exactly touching
+    // and one ulp of rounding decides whether it reads as touching or
+    // overlapping), and tight clusters where several pairs resolve in the same
+    // tick. Both are exactly the cases reported as wrong.
+    //
+    // Resolving at t=0 when the pair is overlapping AND still approaching is the
+    // physically correct reading of "the collision already happened": it cannot
+    // fire for a separating pair (that would add impulses the engine never
+    // applies), and it cannot fire for a non-overlapping pair, so the 792
+    // engine-matched responses measured from live_collisions.log are untouched.
+    if (tempTime == DAT_04c8b9c0) {
+        double rx = ball2.predictedPosition.x - ball1.predictedPosition.x;
+        double ry = ball2.predictedPosition.y - ball1.predictedPosition.y;
+        double gapSq = rx * rx + ry * ry;
+        if (gapSq < combinedBallRadiusSquared && gapSq > 1e-18) {
+            double dvx = ball2.velocity.x - ball1.velocity.x;
+            double dvy = ball2.velocity.y - ball1.velocity.y;
+            if (rx * dvx + ry * dvy < 0.0) { // still closing
+                *smallestTime = 0.0;
+                return true;
+            }
+        }
+    }
+
+    // STRICT outer comparison, matching the engine's pair-iteration loop at
+    // libmain+0x3724530..0x372469c:
+    //     0x37245e8: bl 0x2ca66bc      ; TOI for this pair
+    //     0x37245f4: fcmp d12, d0      ; toi vs current best
+    //     0x37245f8: b.ge 0x372469c    ; REJECT when toi >= best
+    //     0x3724698: str d12, [x22]    ; accept: best = toi
+    // FUN_02b1b2d0 accepts on (toi - 1e-11) <= bound, so on its own it lets an
+    // EQUAL-time pair overwrite the one already recorded, i.e. the LAST pair in
+    // index order wins a tie. The engine keeps the FIRST. That only diverges
+    // when two pairs share a bit-exact TOI, which is precisely what a
+    // mirror-symmetric rack produces on the BREAK - hence break-only garbage.
+    if (tempTime != DAT_04c8b9c0 && tempTime < bound) {
         *smallestTime = tempTime;
         return true;
     }
@@ -83,7 +138,8 @@ bool FUN_03606c80(const Vector2D *position, const Vector2D *velocity, const doub
 }
 
 bool Prediction::Ball::willCollideWithTable(const double *smallestTime) const {
-    return FUN_03606c80(&this->predictedPosition, &this->velocity, smallestTime, &table_bounds, &BALL_RADIUS);
+    double r = BALL_RADIUS;
+    return FUN_03606c80(&this->predictedPosition, &this->velocity, smallestTime, &table_bounds, &r);
 }
 
 struct pos_vel_rad {
@@ -235,6 +291,8 @@ void Prediction::Ball::calcVelocity() {
     auto bak_velocity = ball.velocity();
     auto bak_spin = ball.spin();
 
+    g_livePhysInSim = true;
+
     ball.velocity() = this->velocity;
     ball.spin() = this->spin;
 
@@ -248,6 +306,8 @@ void Prediction::Ball::calcVelocity() {
 
     ball.velocity() = bak_velocity;
     ball.spin() = bak_spin;
+
+    g_livePhysInSim = false;
 }
 
 void Prediction::Ball::calcVelocityPostCollision(const double &angle) {
@@ -262,6 +322,8 @@ void Prediction::Ball::calcVelocityPostCollision(const double &angle) {
     auto bak_velocity = ball.velocity();
     auto bak_spin = ball.spin();
 
+    g_livePhysInSim = true;
+
     ball.velocity() = this->velocity;
     ball.spin() = this->spin;
 
@@ -275,6 +337,8 @@ void Prediction::Ball::calcVelocityPostCollision(const double &angle) {
 
     ball.velocity() = bak_velocity;
     ball.spin() = bak_spin;
+
+    g_livePhysInSim = false;
 
 
     /* double angleCos = round(cos(angle) * 10000.0) / 10000.0;
