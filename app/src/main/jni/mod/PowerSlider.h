@@ -3,14 +3,16 @@
 #include "include/input.h"
 
 extern struct Candidate;
-extern Candidate g_CurrentCandidate;
+
+// g_CurrentCandidate / lastFailedCuePos / IsShotValid() are defined inside
+// namespace AutoPlay (game/inc/AutoPlay.h, included before this file via
+// AutoPlay.impl.h). The old `extern ...;` declarations here pointed at
+// separate, never-defined GLOBAL symbols with the same names — that's what
+// produced "ld: error: undefined symbol: g_CurrentCandidate" etc. at link
+// time. Use the real, namespaced ones (AutoPlay::...) below instead.
 
 #define ifl(cond) if ([&](){ bool b = (cond); if (b) LOGI(#cond); return b; }())
 // #define ifln(cond) if ([&](){ bool b = (cond); if (!b) LOGI("!("#cond")"); return b; }())
-
-extern Point2D lastFailedCuePos;
-
-extern bool IsShotValid();
 
 struct PowerSlider {
     bool Active = false;
@@ -53,7 +55,7 @@ struct PowerSlider {
         NativeTouchesEnd(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
         this->Active = false;
         this->state = IDLE;
-        g_CurrentCandidate.idx = -1;
+        AutoPlay::g_CurrentCandidate.idx = -1;
     }
 
     void Cancel() {
@@ -67,18 +69,25 @@ struct PowerSlider {
         this->Duration = 0.3f; // Fast return
         this->state = RETURNING;
 
-        g_CurrentCandidate.idx = -1;
-        lastFailedCuePos = { -1000.0, -1000.0 };
+        AutoPlay::g_CurrentCandidate.idx = -1;
+        AutoPlay::lastFailedCuePos = { -1000.0, -1000.0 };
 
     }
     
     // DragTime is time to reach MAX power (666.0f)
     void SimulateDrag(ImVec4 Rect, float ShotPower = 0.f, float DragTime = .7f, float HoldTime = 0.35f) {
         if (this->Active) return;
-        
-      //  ShotPower = 666.f;
+
+        // BUG (found by comparing against a known-working reference source):
+        // this line forced every shot to full power regardless of the
+        // requested ShotPower argument, and — combined with the missing
+        // mPower() calls below — meant the ONLY thing driving the shot was
+        // a simulated touch drag the game's own gesture handler had to
+        // interpret correctly on its own, with nothing setting the cue's
+        // actual power value directly. Removed: honor the requested power.
         this->ShotPower = ShotPower > 0.f ? ShotPower : 666.0f;
-        float powerRatio = std::min(this->ShotPower / 666.0f, 1.0f);
+        if (this->ShotPower > 666.0f) this->ShotPower = 666.0f;
+        float powerRatio = (float)ShotPowerToPower((double)this->ShotPower);
         
         Start(Rect);
         
@@ -118,11 +127,24 @@ struct PowerSlider {
                 );
 
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
+                // Drive the cue's actual power value directly, in step with
+                // the drag - this was missing entirely before. Without it,
+                // firing the shot depended 100% on the game's own gesture
+                // handler correctly reading the simulated touch positions as
+                // a power drag; if it didn't (e.g. it wants continuous real
+                // touch events, not just begin/move/end at these coordinates),
+                // the release fired at whatever power the cue already had -
+                // typically none, which reads as "the stick wasn't pulled".
+                if (sharedGameManager && sharedGameManager.mVisualCue()) {
+                    sharedGameManager.mVisualCue().mPower(ShotPowerToPower((double)(this->ShotPower * t)));
+                }
             } else {
-                //return Cancel();
                 // Ensure we hit the target exactly
                 this->CurrentPos = this->TargetPos;
                 NativeTouchesMove(this->TouchIndex, this->CurrentPos.x, this->CurrentPos.y);
+                if (sharedGameManager && sharedGameManager.mVisualCue()) {
+                    sharedGameManager.mVisualCue().mPower(ShotPowerToPower((double)this->ShotPower));
+                }
                 this->state = ENDING;
             }
 
@@ -135,8 +157,14 @@ struct PowerSlider {
 
         if (this->state == ENDING) {
             this->HoldTime += dt;
+            // Keep power locked at target while holding, same as MOVING's
+            // final frame - a stray frame between phases shouldn't let it
+            // drift back to whatever the game had before we started.
+            if (sharedGameManager && sharedGameManager.mVisualCue()) {
+                sharedGameManager.mVisualCue().mPower(ShotPowerToPower((double)this->ShotPower));
+            }
             if (this->HoldTime >= this->HoldDuration) {
-                if (IsShotValid()) {
+                if (AutoPlay::IsShotValid()) {
                     this->End();
                 } else {
                     LOGI("Shot invalid before release. Canceling.");
