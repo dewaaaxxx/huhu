@@ -632,50 +632,43 @@ INLINE void DrawESP(ImDrawList* draw) {
             }
         }
         
-        // ── BACA LINE STYLE ──
-        
         
         if (persistent_bool[O("bESP_DrawPredictionLine")]) {
-            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
+            int ballCount = gPrediction->guiData.ballsCount;
+            for (int i = 0; i < ballCount; i++) {
                 auto& ball = gPrediction->guiData.balls[i];
-
+        
                 if (ball.initialPosition != ball.predictedPosition) {
+                    // ─── Gambar garis ──────────────────────────────────
                     ImVec2 lastPos{};
                     float lineThick = (float)persistent_int[O("iLineThickness")];
                     if (lineThick < 1.f) lineThick = 2.f;
-                    for (int j = 1; j < ball.positions.size(); j++) {
+                    for (int j = 1; j < (int)ball.positions.size(); j++) {
                         auto point = WorldToScreen(ball.positions[j]);
                         if (lastPos.x || lastPos.y) draw->AddLine(lastPos, point, colors[i], lineThick);
                         lastPos = point;
                     }
-                }
-            }
-        }
-
-        if (persistent_bool[O("bESP_DrawPredictionLine")]) {
-            for (int i = 0; i < gPrediction->guiData.ballsCount; i++) {
-                auto& ball = gPrediction->guiData.balls[i];
-
-                if (ball.initialPosition != ball.predictedPosition) {
+        
+                    // ─── Lingkaran awal dan akhir ──────────────────────
                     float circleR = (float)persistent_int[O("iLineThickness")] + 1.f;
                     if (circleR < 2.f) circleR = 2.f;
                     draw->AddCircleFilled(WorldToScreen(ball.initialPosition), circleR, colors[i]);
                     draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), 16, colors[i]);
-                }
-            }
-        }
-
-        if (persistent_bool[O("bESP_ShowBallNumbers")] && i > 0) {
+        
+                    // ─── Nomor bola di akhir garis (hanya untuk bola > 0) ──
+                    if (persistent_bool[O("bESP_ShowBallNumbers")] && i > 0) {
                         char number[8];
                         snprintf(number, sizeof(number), "%d", i);
                         const float innerRadius = 16 * 0.65f;
-                        draw->AddCircleFilled(ball.predictedPosition, innerRadius, IM_COL32(255, 255, 255, 255));
+                        draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), innerRadius, IM_COL32(255, 255, 255, 255));
                         ImFont* font = ImGui::GetFont();
                         const float fontSize = ImGui::GetFontSize() * 0.75f;
                         ImVec2 textSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, number);
-                        draw->AddText(font, fontSize,
-                                      ball.predictedPosition - (textSize * 0.4f),
-                                      IM_COL32(0, 0, 0, 255), number);
+                        ImVec2 pos = WorldToScreen(ball.predictedPosition) - (textSize * 0.4f);
+                        draw->AddText(font, fontSize, pos, IM_COL32(0, 0, 0, 255), number);
+                    }
+                }
+            }
         }
     }
 }
