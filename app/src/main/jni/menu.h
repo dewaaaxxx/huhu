@@ -900,7 +900,7 @@ static void DrawContentArea(float winW, float winH) {
             SectionHeader("Auto Menu");
             bool autoPlayEnabled = persistent_bool[O("bAutoPlay")];
             bool autoPlayPressed = false;
-            DrawModeButton(L("Auto Play"), autoPlayEnabled, &autoPlayPressed);
+            DrawModeButton("Auto Play"), autoPlayEnabled, &autoPlayPressed);
             if (autoPlayPressed) {
                 SetAutoPlayEnabled(!autoPlayEnabled);
                 need_save = true;
