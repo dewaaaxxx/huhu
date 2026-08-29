@@ -73,6 +73,17 @@ struct GameManager : Class {
         F(uint, rules + 0x118) = pocket;
     }
 
+    // NOT REVERSE-ENGINEERED YET. This member is called in HumanScan.impl.h
+    // and AutoPlay.impl.h but was never defined anywhere in the project — it
+    // isn't a naming bug, the offset genuinely doesn't exist in the uploaded
+    // sources. Returning false compiles safely and just disables the
+    // "8-ball must bank off a cushion" rule check (treated as always false)
+    // until you dump the real Ruleset field for it and replace this body,
+    // e.g.: return F(bool, rules() + 0x1??);
+    bool is8BallCushionShotRequired() {
+        return false;
+    }
+
     operator bool() { return instance && isInstanceOf("GameManager"); }
 };
 
