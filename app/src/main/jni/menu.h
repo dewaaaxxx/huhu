@@ -82,11 +82,16 @@ static inline const MenuTheme& GetTheme() {
 }
 
 static void DrawModeButton(const char* label, bool active, bool* pressed) {
+    const MenuTheme& T = GetTheme();
+    ImVec4 accent = ImGui::ColorConvertU32ToFloat4(T.accent);
+    ImVec4 accentHov = ImGui::ColorConvertU32ToFloat4(T.accentHov);
+    ImVec4 textCol = ImGui::ColorConvertU32ToFloat4(T.textPrimary);
+
     PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
-    PushStyleColor(ImGuiCol_Button, active ? GOLD_VEC4 : ImVec4(0.08f, 0.18f, 0.28f, 1.0f));
-    PushStyleColor(ImGuiCol_ButtonHovered, active ? ImVec4(1.0f, 0.72f, 0.95f, 1.0f) : ImVec4(0.12f, 0.35f, 0.48f, 1.0f));
-    PushStyleColor(ImGuiCol_ButtonActive, GOLD_DIM_VEC4);
-    PushStyleColor(ImGuiCol_Text, active ? ImVec4(0.02f, 0.03f, 0.08f, 1.0f) : ImVec4(0.93f, 1.0f, 1.0f, 1.0f));
+    PushStyleColor(ImGuiCol_Button, active ? accent : ImVec4(0.08f, 0.18f, 0.28f, 1.0f));
+    PushStyleColor(ImGuiCol_ButtonHovered, active ? accentHov : ImVec4(0.12f, 0.35f, 0.48f, 1.0f));
+    PushStyleColor(ImGuiCol_ButtonActive, active ? accentHov : accent);
+    PushStyleColor(ImGuiCol_Text, active ? ImVec4(1.0f, 1.0f, 1.0f, 1.0f) : textCol);
     *pressed = Button(label, ImVec2(GetContentRegionAvail().x, 58.0f));
     PopStyleColor(4);
     PopStyleVar();
@@ -182,6 +187,25 @@ static bool SidebarButton(const char* label, GLuint iconTex, bool selected,
     }
 
     return pressed;
+}
+
+static void SetAutoPlayEnabled(bool enabled) {
+    persistent_bool[O("bAutoPlay")] = enabled;
+    AutoPlay::bAutoPlaying = enabled;
+
+    if (enabled) {
+        // Auto Play يعمل مباشرة وبلا تأخير.
+        persistent_int[O("iAutoPlay_Speed")] = 0;
+        AutoPlay::currentMode = AutoPlay::MODE_AUTO_PLAY;
+        AutoPlay::playStyle = AutoPlay::STYLE_WILD;
+        AutoPlay::ClearState();
+    } else {
+        // إيقاف AutoPlay وAutoAim معاً حتى لا يعيد AutoAim تشغيل الزر تلقائياً.
+        persistent_bool[O("bAutoAim")] = false;
+        AutoPlay::currentMode = AutoPlay::MODE_OFF;
+        AutoPlay::bAutoPlaying = false;
+        AutoPlay::ClearState();
+    }
 }
 
 static bool CmCombo(const char* label, const char* sub, int* val, const char* items_z) {
@@ -889,45 +913,7 @@ static void DrawContentArea(float winW, float winH) {
             persistent_int[O("iPlayStyle")] = 1;
             AutoPlay::playStyle = AutoPlay::STYLE_WILD;
             need_save |= ToggleSwitch(O("Enable AutoQueue"), &persistent_bool[O("bAutoQueue")]);
-
-            // AutoPlay Shooting Mode
-            Dummy(ImVec2(0, 12));
-            TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("AutoPlay Mode"));
-            Dummy(ImVec2(0, 6));
-            {
-                PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-                PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(15, 12));
-                PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.12f, 0.12f, 0.15f, 1.0f));
-                PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.16f, 0.16f, 0.20f, 1.0f));
-                SetNextItemWidth(GetContentRegionAvail().x);
-                if (CmCombo("Mode", "",
-                            &persistent_int[O("iAutoPlayMode")],
-                            "Human Mode\0Fast Mode\0")) {
-                    need_save = true;
-                }
-                PopStyleColor(2);
-                PopStyleVar(2);
-                // Sync ke AutoPlay::bHumanMode setiap render
-           //     AutoPlay::bHumanMode = (persistent_int[O("iAutoPlayMode")] == 0);
-            }
-
-            // Info singkat mode yang dipilih
-            Dummy(ImVec2(0, 6));
-            if (persistent_int[O("iAutoPlayMode")] == 0) {
-                TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "[HUM] Human Mode");
-                PushTextWrapPos(GetContentRegionAvail().x);
-                TextColored(ImVec4(0.6f, 0.6f, 0.65f, 1.0f),
-                    "AutoPlay will move the aiming like a natural human"
-                    "Safe");
-                PopTextWrapPos();
-            } else {
-                TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "[FST] Fast Mode");
-                PushTextWrapPos(GetContentRegionAvail().x);
-                TextColored(ImVec4(0.6f, 0.6f, 0.65f, 1.0f),
-                    "Direct shooting without drag aiming animation."
-                    "Risk");
-                PopTextWrapPos();
-            }
+            
             Dummy(ImVec2(0, 20));
             
             TextColored(ImVec4(0.75f, 0.75f, 0.8f, 1.0f), O("Mode"));
