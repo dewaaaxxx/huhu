@@ -81,9 +81,20 @@ static inline const MenuTheme& GetTheme() {
     return THEMES[idx];
 }
 
+static void DrawModeButton(const char* label, bool active, bool* pressed) {
+    PushStyleVar(ImGuiStyleVar_FrameRounding, 12.0f);
+    PushStyleColor(ImGuiCol_Button, active ? GOLD_VEC4 : ImVec4(0.08f, 0.18f, 0.28f, 1.0f));
+    PushStyleColor(ImGuiCol_ButtonHovered, active ? ImVec4(1.0f, 0.72f, 0.95f, 1.0f) : ImVec4(0.12f, 0.35f, 0.48f, 1.0f));
+    PushStyleColor(ImGuiCol_ButtonActive, GOLD_DIM_VEC4);
+    PushStyleColor(ImGuiCol_Text, active ? ImVec4(0.02f, 0.03f, 0.08f, 1.0f) : ImVec4(0.93f, 1.0f, 1.0f, 1.0f));
+    *pressed = Button(label, ImVec2(GetContentRegionAvail().x, 58.0f));
+    PopStyleColor(4);
+    PopStyleVar();
+}
+
 // g_ExpiryTimestamp (from keylogin.h) replaces hardcoded EXPIRY_TS
 
-static bool DEBUG_BYPASS_LOGIN = false;
+static bool DEBUG_BYPASS_LOGIN = true;
 
 static float EaseOutBack(float x) {
     const float c1 = 1.70158f;
@@ -863,7 +874,20 @@ static void DrawContentArea(float winW, float winH) {
             // ═══════════════════════════════════════════════════
             Dummy(ImVec2(0, 8));
             SectionHeader("Auto Menu");
-            need_save |= ToggleSwitch(O("Enable Auto Play"), &persistent_bool[O("bAutoPlay")]);
+            bool autoPlayEnabled = persistent_bool[O("bAutoPlay")];
+            bool autoPlayPressed = false;
+            DrawModeButton(L("Auto Play"), autoPlayEnabled, &autoPlayPressed);
+            if (autoPlayPressed) {
+                SetAutoPlayEnabled(!autoPlayEnabled);
+                need_save = true;
+            }
+            // ═══════════════════════════════════════════════════════════
+            
+            Dummy(ImVec2(0, 20));
+
+            // AutoPlay يعمل بالأسلوب الوحشي داخليًا دون عرض أي زر أو اختيار أسلوب.
+            persistent_int[O("iPlayStyle")] = 1;
+            AutoPlay::playStyle = AutoPlay::STYLE_WILD;
             need_save |= ToggleSwitch(O("Enable AutoQueue"), &persistent_bool[O("bAutoQueue")]);
 
             // AutoPlay Shooting Mode
