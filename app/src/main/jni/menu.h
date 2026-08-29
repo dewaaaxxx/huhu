@@ -625,11 +625,13 @@ INLINE void DrawESP(ImDrawList* draw) {
             gPrediction->determineShotResult(false);
         }
 
-        if (persistent_bool[O("bESP_DrawPockets")]) {
+        if (persistent_bool[O("bESP_DrawPocketsShotState")]) {
             for (int i = 0; i < 6; i++) {
-                auto sp = WorldToScreen(pockets[i]);
-                draw->AddCircle(ImVec2(sp.x, sp.y), 40, NEON_CYAN, 0, 3.f);
-                draw->AddCircle(ImVec2(sp.x, sp.y), 50, IM_COL32(0, 200, 255, 60), 0, 1.5f);
+                if (Prediction::pocketStatus[i]) {
+                    auto sp = WorldToScreen(pockets[i]);
+                    draw->AddCircle(ImVec2(sp.x, sp.y), 40, IM_COL32(0, 255, 100, 255), 0, 5.f);
+                    draw->AddCircle(ImVec2(sp.x, sp.y), 55, IM_COL32(0, 255, 100, 60), 0, 2.0f);
+                }
             }
         }
         
