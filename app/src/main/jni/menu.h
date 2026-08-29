@@ -907,20 +907,22 @@ static void DrawContentArea(float winW, float winH) {
             // ═══════════════════════════════════════════════════
             Dummy(ImVec2(0, 8));
             SectionHeader("Auto Menu");
-            bool autoPlayEnabled = persistent_bool[O("bAutoPlay")];
-            bool autoPlayPressed = false;
-            DrawModeButton("Auto Play", autoPlayEnabled, &autoPlayPressed);
-            if (autoPlayPressed) {
-                SetAutoPlayEnabled(!autoPlayEnabled);
+            if (ToggleSwitch("Auto Play", &persistent_bool[O("bAutoPlay")])) {
+                bool newState = persistent_bool[O("bAutoPlay")];
+                if (newState) {
+                    AutoPlay::bAutoPlaying = true;
+                    AutoPlay::currentMode = AutoPlay::MODE_AUTO_PLAY;
+                    AutoPlay::playStyle = AutoPlay::STYLE_WILD;
+                    AutoPlay::ClearState();
+                } else {
+                    AutoPlay::bAutoPlaying = false;
+                    AutoPlay::currentMode = AutoPlay::MODE_OFF;
+                    AutoPlay::ClearState();
+                }
+                save_persistence();
                 need_save = true;
             }
-            // ═══════════════════════════════════════════════════════════
-            
-            Dummy(ImVec2(0, 20));
 
-            // AutoPlay يعمل بالأسلوب الوحشي داخليًا دون عرض أي زر أو اختيار أسلوب.
-            persistent_int[O("iPlayStyle")] = 1;
-            AutoPlay::playStyle = AutoPlay::STYLE_WILD;
             need_save |= ToggleSwitch(O("Enable AutoQueue"), &persistent_bool[O("bAutoQueue")]);
             
             Dummy(ImVec2(0, 20));
