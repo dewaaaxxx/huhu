@@ -2419,26 +2419,6 @@ void AutoPlay::Update() {
         }
     }
 
-    // SPIDERENGINE PREMIUM NOMINATED POCKET VISUAL
-    if (persistent_bool.count(O("bPocketTargetVisual")) == 0 || persistent_bool[O("bPocketTargetVisual")]) {
-        int nomPocket = sharedGameManager.getNominatedPocket();
-        if (nomPocket >= 0 && nomPocket < 6) {
-            ImVec2 pktPos = GetPocketScreenPos(nomPocket);
-            ImDrawList* fg = ImGui::GetBackgroundDrawList(); // Draw behind UI but over game
-            float pulse = (sin(ImGui::GetTime() * 8.0f) + 1.0f) * 0.5f; // Pulsing 0.0 to 1.0
-            float r = 35.0f + (pulse * 8.0f);
-            
-            // Glowing Base
-            fg->AddCircleFilled(pktPos, r, IM_COL32(255, 120, 0, 70));
-            // Outer Bright Ring
-            fg->AddCircle(pktPos, r, IM_COL32(255, 200, 0, 255), 0, 3.5f);
-            
-            // Spider Target Crosshair
-            fg->AddLine(ImVec2(pktPos.x - 18, pktPos.y), ImVec2(pktPos.x + 18, pktPos.y), IM_COL32(255, 255, 255, 180), 2.5f);
-            fg->AddLine(ImVec2(pktPos.x, pktPos.y - 18), ImVec2(pktPos.x, pktPos.y + 18), IM_COL32(255, 255, 255, 180), 2.5f);
-        }
-    }
-
     static bool wasPlayerTurn = false;
     bool isPlayerTurn = sharedGameManager.mStateManager().isPlayerTurn();
     if (isPlayerTurn && bAutoSpin) applyAutoSpin();
