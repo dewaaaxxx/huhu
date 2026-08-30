@@ -665,7 +665,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                         const float innerRadius = 16 * 0.65f;
                         draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), innerRadius, IM_COL32(255, 255, 255, 255));
                         ImFont* font = ImGui::GetFont();
-                        const float fontSize = ImGui::GetFontSize() * 0.70f;
+                        const float fontSize = ImGui::GetFontSize() * 0.60f;
                         ImVec2 textSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, number);
                         ImVec2 pos = WorldToScreen(ball.predictedPosition) - (textSize * 0.5f);
                         draw->AddText(font, fontSize, pos, IM_COL32(0, 0, 0, 255), number);
@@ -1835,6 +1835,10 @@ INLINE void SetupImgui() {
     switch_theme(current_theme);
 
     load_persistence();
+    // after load_persistence();
+    if (persistent_bool.count(O("bAutoPlay")) == 0) {
+        persistent_bool[O("bAutoPlay")] = false;
+    }
     svConfig_Load();
     load_imgui_style();
 
