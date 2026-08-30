@@ -18,7 +18,7 @@
 #include "game/inc/AutoPlay.h"
 #include "game/inc/AutoQueue.h"
 #include "game/inc/ScreenTable.h"
-#include "game/inc/PocketEffect.h"
+//#include "game/inc/PocketEffect.h"
 
 // AutoPlay.h above only declares AutoPlay::Update()/ClearState()/etc; the
 // actual bodies live in AutoPlay.impl.h. GameMaster.impl.h and HumanScan.impl.h
