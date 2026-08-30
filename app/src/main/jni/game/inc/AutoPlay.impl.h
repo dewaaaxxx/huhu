@@ -1051,7 +1051,7 @@ static void BuildWildCandidates() {
                         // Rank behind every direct family, and behind shorter
                         // banks. A cushion eats speed, so the power carries a
                         // surcharge the flat distance formula does not know about.
-                        double score = pathLen + distToPocket * 1.5 + 200.0;
+                        double score = pathLen + distToPocket * 1.5 + 50.0;
                         double power = std::clamp(
                             CalculateRequiredPower(pathLen + distToPocket) * 1.45,
                             (double)AutoPlay::powerMin, (double)AutoPlay::powerMax);
@@ -1196,14 +1196,14 @@ static void BuildWildCandidates() {
 
     if (eightMustBank) {
         g_wild.raw.insert(g_wild.raw.end(), banks.begin(), banks.end());
-        g_wild.raw.insert(g_wild.raw.end(), direct.begin(), direct.end());
         g_wild.raw.insert(g_wild.raw.end(), scatter.begin(), scatter.end());
         g_wild.raw.insert(g_wild.raw.end(), special.begin(), special.end());
-    } else {
         g_wild.raw.insert(g_wild.raw.end(), direct.begin(), direct.end());
+    } else {
         g_wild.raw.insert(g_wild.raw.end(), scatter.begin(), scatter.end());
         g_wild.raw.insert(g_wild.raw.end(), special.begin(), special.end());
         g_wild.raw.insert(g_wild.raw.end(), banks.begin(), banks.end());
+        g_wild.raw.insert(g_wild.raw.end(), direct.begin(), direct.end());
     }
 
     g_wild.raw.insert(g_wild.raw.end(), sweep.begin(), sweep.end());
