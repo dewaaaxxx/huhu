@@ -176,21 +176,23 @@ static bool SidebarButton(const char* label, GLuint iconTex, bool selected,
 }
 
 static void SetAutoPlayEnabled(bool enabled) {
-    persistent_bool[O("bAutoPlay")] = enabled;
-    AutoPlay::bAutoPlaying = enabled;
-
-    if (enabled) {
-        // Auto Play يعمل مباشرة وبلا تأخير.
-        persistent_int[O("iAutoPlay_Speed")] = 0;
-        AutoPlay::currentMode = AutoPlay::MODE_AUTO_PLAY;
-        AutoPlay::playStyle = AutoPlay::STYLE_WILD;
-        AutoPlay::ClearState();
-    } else {
-        // إيقاف AutoPlay وAutoAim معاً حتى لا يعيد AutoAim تشغيل الزر تلقائياً.
-        persistent_bool[O("bAutoAim")] = false;
-        AutoPlay::currentMode = AutoPlay::MODE_OFF;
-        AutoPlay::bAutoPlaying = false;
-        AutoPlay::ClearState();
+    if (persistent_bool[O("bButton")]) {
+        persistent_bool[O("bAutoPlay")] = enabled;
+        AutoPlay::bAutoPlaying = enabled;
+    
+        if (enabled) {
+            // Auto Play يعمل مباشرة وبلا تأخير.
+            persistent_int[O("iAutoPlay_Speed")] = 0;
+            AutoPlay::currentMode = AutoPlay::MODE_AUTO_PLAY;
+            AutoPlay::playStyle = AutoPlay::STYLE_WILD;
+            AutoPlay::ClearState();
+        } else {
+            // إيقاف AutoPlay وAutoAim معاً حتى لا يعيد AutoAim تشغيل الزر تلقائياً.
+            persistent_bool[O("bAutoAim")] = false;
+            AutoPlay::currentMode = AutoPlay::MODE_OFF;
+            AutoPlay::bAutoPlaying = false;
+            AutoPlay::ClearState();
+        }
     }
 }
 
@@ -665,7 +667,7 @@ INLINE void DrawESP(ImDrawList* draw) {
                         const float innerRadius = 16 * 0.65f;
                         draw->AddCircleFilled(WorldToScreen(ball.predictedPosition), innerRadius, IM_COL32(255, 255, 255, 255));
                         ImFont* font = ImGui::GetFont();
-                        const float fontSize = ImGui::GetFontSize() * 0.60f;
+                        const float fontSize = ImGui::GetFontSize() * 0.55f;
                         ImVec2 textSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, number);
                         ImVec2 pos = WorldToScreen(ball.predictedPosition) - (textSize * 0.5f);
                         draw->AddText(font, fontSize, pos, IM_COL32(0, 0, 0, 255), number);
