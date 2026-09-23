@@ -1,40 +1,32 @@
-name: Delete all artifacts (run-once)
+name: Ekstrak ZIP dan Simpan ke Repo
 
 on:
-  workflow_dispatch:
-    inputs:
-      # Default mode is 'delete' to remove all matching artifacts when you press Run
-      mode:
-        description: 'dry = only show, delete = actually delete'
-        required: true
-        default: 'delete'
-      older_than_days:
-        description: 'Hapus artifact lebih tua dari N hari (0 = ignore)'
-        required: true
-        default: '0'
-      pattern:
-        description: 'Substring nama artifact untuk dicocokkan (kosong = semua)'
-        required: false
-        default: ''
-
-permissions:
-  actions: write
+  workflow_dispatch:  # Hanya manual trigger
 
 jobs:
-  delete-artifacts:
+  extract:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Install jq
-        run: sudo apt-get update -y && sudo apt-get install -y jq
-      - name: List and delete artifacts
-        env:
-          MODE: ${{ github.event.inputs.mode }}
-          OLDER_THAN_DAYS: ${{ github.event.inputs.older_than_days }}
-          PATTERN: ${{ github.event.inputs.pattern }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          OWNER=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f1)
+    - name: Checkout kode
+      uses: actions/checkout@v4
+
+    - name: Cari dan ekstrak semua file ZIP
+      run: |
+        echo "🔍 Mencari file ZIP..."
+        find . -name "*.zip" -type f | while read zipfile; do
+          echo "📦 Mengekstrak: $zipfile"
+          unzip -o "$zipfile" -d "$(dirname "$zipfile")"
+          rm -f "$zipfile"  # Hapus ZIP setelah ekstrak (opsional)
+        done
+
+    - name: Commit dan push hasil ekstrak
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add .
+        git diff --quiet && git diff --staged --quiet || git commit -m "Auto ekstrak file ZIP [skip ci]"
+        git push          OWNER=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f1)
           REPO=$(echo "$GITHUB_REPOSITORY" | cut -d'/' -f2)
           echo "Repo: $OWNER/$REPO"
           if [ "$OLDER_THAN_DAYS" -gt 0 ]; then
